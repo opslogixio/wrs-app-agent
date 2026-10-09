@@ -9,9 +9,9 @@ After pulling the repository, `sudo bash deploy/setup-host.sh` applies migration
 - `sudo systemctl restart wrs-report-worker`: restart processing.
 - `python manage.py process_report_jobs --once`: process one eligible job with the configured environment.
 
-“Export to PDF” submits a CSRF-protected request, then displays progress and an authorized download. “My PDF exports” lists the user's requests. Duplicate pending requests are reused; each user can have five pending exports. Access is checked at submission, processing, status viewing, and download. Membership or role revocation prevents access.
+“Export to PDF” submits a CSRF-protected request from the current report page, polls progress, and automatically downloads the PDF without navigating away. There is no export history or regeneration page. Duplicate pending requests are reused; each user can have five pending exports. Access is checked at submission, processing, status viewing, and download. Membership or role revocation prevents access.
 
-Interrupted jobs become eligible again after a 30-minute lease, with at most three attempts. An expired attempt cannot publish over a newer worker. Rendering failures show a generic message and are logged with the job UUID. Completed PDFs live in `REPORT_ROOT/jobs/`, are excluded from static collection/public Nginx access, and are removed after seven days. The worker cleans expired records and orphaned files hourly and restarts hourly to bound retained memory. Existing archived daily PDFs are unaffected by this cleanup.
+Interrupted jobs become eligible again after a 30-minute lease, with at most three attempts. An expired attempt cannot publish over a newer worker. Rendering failures show a generic message and are logged with the job UUID. Completed PDFs live in `REPORT_ROOT/jobs/`, are excluded from static collection/public Nginx access, and are removed immediately after download. Abandoned exports expire after one hour. The worker cleans expired records and orphaned files hourly and restarts hourly to bound retained memory. Existing archived daily PDFs are unaffected by this cleanup.
 
 Run checks on `wrs-agentic` using the installed virtual environment:
 

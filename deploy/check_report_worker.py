@@ -56,7 +56,7 @@ try:
     response = client.post(reverse('reports:report-export'), {
         'dealership': dealer.name, 'report_type': 'Daily Report', 'start_date': '2099-01-01',
     })
-    assert response.status_code == 302, response.status_code
+    assert response.status_code == 202, response.status_code
     job = ReportJob.objects.get(requested_by=user)
     deadline = time.monotonic() + 45
     while job.state in {'queued', 'running'} and time.monotonic() < deadline:

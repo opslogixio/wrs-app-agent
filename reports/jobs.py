@@ -143,8 +143,8 @@ def process_job(job):
 
 
 def remove_expired_reports():
-    """Keep completed exports for seven days, including orphaned job files."""
-    cutoff = timezone.now() - timedelta(days=7)
+    """Remove abandoned exports after one hour; downloaded exports are removed immediately."""
+    cutoff = timezone.now() - timedelta(hours=1)
     expired = ReportJob.objects.filter(state__in=['completed', 'failed'], finished_at__lt=cutoff)
     for job in expired.iterator(chunk_size=100):
         report_path(job).unlink(missing_ok=True)

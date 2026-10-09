@@ -5,7 +5,7 @@
   <p>{{ dealership }}{% if start_date %} — {{ start_date }}{% endif %}{% if end_date %} through {{ end_date }}{% endif %}</p>
   <p>Your PDF will be generated in the background. You can continue using the app while it processes.</p>
   {% if error %}<p role="alert">{{ error }}</p>{% endif %}
-  <form method="post">{% csrf_token %}
+  <form data-pdf-export method="post">{% csrf_token %}
     <input type="hidden" name="dealership" value="{{ dealership }}">
     <input type="hidden" name="report_type" value="{{ report_type }}">
     <input type="hidden" name="start_date" value="{{ start_date|date:'Y-m-d' }}">
@@ -13,4 +13,6 @@
     <button class="btn btn-primary" type="submit">Generate PDF</button>
   </form>
 </div></div>
+<p class="pdf-export-status" role="status" aria-live="polite"></p>
+{% load static %}<script src="{% static 'js/pages/report-export.js' %}" defer></script>
 {% endblock contents %}

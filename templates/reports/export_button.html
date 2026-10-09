@@ -1,4 +1,4 @@
-<form method="post" action="{% url 'reports:report-export' %}" class="float-end me-5">
+<form data-pdf-export method="post" action="{% url 'reports:report-export' %}" class="float-end me-5">
   {% csrf_token %}
   <input type="hidden" name="dealership" value="{{ dealership }}">
   <input type="hidden" name="report_type" value="{{ report_type }}">
@@ -6,4 +6,6 @@
   <input type="hidden" name="end_date" value="{{ end_date|date:'Y-m-d' }}">
   <button class="btn btn-outline-success" type="submit">Export to PDF</button>
 </form>
-<a href="{% url 'reports:report-jobs' %}">My PDF exports</a>
+<p class="pdf-export-status" role="status" aria-live="polite"></p>
+{% load static %}
+<script src="{% static 'js/pages/report-export.js' %}" defer></script>

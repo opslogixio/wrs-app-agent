@@ -109,11 +109,12 @@ class BackgroundReportTests(TestCase):
             response = self.client.post(self.url, self.params)
             render.assert_not_called()
         job = self.jobs.objects.get()
-        self.assertRedirects(response, reverse('reports:report-job', args=[job.pk]))
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json()['status_url'], reverse('reports:report-job', args=[job.pk]))
         self.assertEqual(job.state, 'queued')
-        self.assertEqual(self.client.post(self.url, self.params).status_code, 302)
+        self.assertEqual(self.client.post(self.url, self.params).status_code, 202)
         self.assertEqual(self.jobs.objects.count(), 1)
-        self.assertContains(self.client.get(reverse('reports:report-jobs')), self.dealer.name)
+        self.assertEqual(self.client.get(reverse('reports:report-export').rsplit('report_export/', 1)[0] + 'jobs/').status_code, 404)
 
     def test_export_validation_authorization_and_csrf(self):
         from django.test import Client
@@ -147,12 +148,14 @@ class BackgroundReportTests(TestCase):
         self.assertTrue(report_path(job).read_bytes().startswith(b'%PDF-'))
         from pypdf import PdfReader
         self.assertTrue(any(len(page.images) for page in PdfReader(report_path(job)).pages))
-        response = self.client.get(reverse('reports:report-job-download', args=[job.pk]))
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(b''.join(response.streaming_content).startswith(b'%PDF-'))
-        status = self.client.get(reverse('reports:report-job', args=[job.pk]), {'format': 'json'})
+        status = self.client.get(reverse('reports:report-job', args=[job.pk]))
         self.assertEqual(status.json()['state'], 'completed')
         self.assertTrue(status.json()['download_url'])
+        response = self.client.get(status.json()['download_url'])
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(b''.join(response.streaming_content).startswith(b'%PDF-'))
+        self.assertFalse(report_path(job).exists())
+        self.assertFalse(self.jobs.objects.filter(pk=job.pk).exists())
 
     def test_every_report_type_renders_data_in_local_pdf(self):
         from .jobs import enqueue_report, claim_next_job, process_job, report_path
@@ -189,7 +192,7 @@ class BackgroundReportTests(TestCase):
         self.client.force_login(self.other_user)
         self.assertEqual(self.client.get(reverse('reports:report-job', args=[job.pk])).status_code, 404)
         self.assertEqual(self.client.get(reverse('reports:report-job-download', args=[job.pk])).status_code, 404)
-        self.assertNotContains(self.client.get(reverse('reports:report-jobs')), str(job.pk))
+        self.assertEqual(self.client.get(reverse('reports:report-export').rsplit('report_export/', 1)[0] + 'jobs/').status_code, 404)
         self.client.force_login(self.user)
         self.user.dealership.clear()
         self.assertEqual(self.client.get(reverse('reports:report-job', args=[job.pk])).status_code, 404)
@@ -356,5 +359,5 @@ class ReportTaskTests(TestCase):
                 response = self.client.get(reverse('reports:report-job-download', args=[job.pk]))
                 self.assertTrue(response['Content-Disposition'].startswith('attachment;'))
                 self.assertEqual(b''.join(response.streaming_content), b'%PDF-1.4\n')
-                response = self.client.get(reverse('reports:report-job', args=[job.pk]))
-                self.assertContains(response, "document.getElementById('report-download').click()")
+                self.assertFalse(path.exists())
+                self.assertEqual(self.client.get(reverse('reports:report-job', args=[job.pk])).status_code, 404)

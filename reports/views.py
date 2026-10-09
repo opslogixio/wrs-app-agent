@@ -346,7 +346,7 @@ def export_to_pdf(request):
             response = render(request, 'reports/export_request.html', context, status=429)
             response['Retry-After'] = '30'
             return response
-        return redirect('reports:report-job', job_id=job.pk)
+        return JsonResponse({'status_url': reverse('reports:report-job', args=[job.pk])}, status=202)
     return render(request, 'reports/export_request.html', context)
 
 
@@ -365,9 +365,8 @@ def report_job_status(request, job_id):
     job = accessible_report_job(request, job_id)
     ready = job.state == 'completed' and report_path(job).is_file()
     download = reverse('reports:report-job-download', args=[job.pk]) if ready else None
-    response = (JsonResponse({'state': job.state, 'label': job.get_state_display(),
-        'error': job.error, 'download_url': download}) if request.GET.get('format') == 'json'
-        else render(request, 'reports/export_status.html', {'job': job, 'download_url': download}))
+    response = JsonResponse({'state': job.state, 'label': job.get_state_display(),
+        'error': job.error, 'download_url': download})
     response['Cache-Control'] = 'private, no-store'
     return response
 
@@ -383,6 +382,14 @@ def download_report_job(request, job_id):
     if not path.is_file():
         raise Http404
     response = FileResponse(path.open('rb'), as_attachment=True, filename=f'report-{job.pk}.pdf', content_type='application/pdf')
+    stream = response.streaming_content
+    def consume_once():
+        try:
+            yield from stream
+        finally:
+            path.unlink(missing_ok=True)
+            job.delete()
+    response.streaming_content = consume_once()
     response['Cache-Control'] = 'private, no-store'
     return response
 
@@ -857,17 +864,5 @@ def download_report(request, relative_path):
         raise Http404
     get_dealership(request.user, matches[0].pk)
     response = FileResponse(path.open('rb'), as_attachment=True, filename=path.name, content_type='application/pdf')
-    response['Cache-Control'] = 'private, no-store'
-    return response
-
-
-@in_group_required('dealer-admin', 'wrs-admin')
-@require_GET
-def report_jobs(request):
-    from .models import ReportJob
-    jobs = (ReportJob.objects.filter(requested_by=request.user,
-        dealership__in=accessible_dealerships(request.user)).select_related('dealership').order_by('-created_at', '-id'))
-    page = Paginator(jobs, 25).get_page(request.GET.get('page'))
-    response = render(request, 'reports/export_list.html', {'page_obj': page})
     response['Cache-Control'] = 'private, no-store'
     return response

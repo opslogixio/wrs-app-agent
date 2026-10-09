@@ -1,5 +1,5 @@
 from django.urls import path
-from reports.views import report_jobs, report_job_status, download_report_job, download_report, Reports, DailyReportsView, ArchiveDailyReportsView, OpenClaimsReportView, DiscrepancyReportView, RaReportView, update_ro_status, export_to_pdf, historical_claim_view, historical_linetable_view, historical_journal_view, list_report_files
+from reports.views import report_job_status, download_report_job, download_report, Reports, DailyReportsView, ArchiveDailyReportsView, OpenClaimsReportView, DiscrepancyReportView, RaReportView, update_ro_status, export_to_pdf, historical_claim_view, historical_linetable_view, historical_journal_view, list_report_files
 from django.contrib.auth.decorators import login_required
 
 app_name = 'reports'
@@ -13,7 +13,7 @@ urlpatterns = [
     path('discrepancy_report/', DiscrepancyReportView.as_view(), name='discrepancy-report'),
     path('ra_report/<str:filter_request>', RaReportView.as_view(), name='ra-report'),
     path('ro_status', update_ro_status, name='ro-status'),
-    path('jobs/', report_jobs, name='report-jobs'),
+    path('jobs/', name='report-jobs'),
     path('jobs/<uuid:job_id>/', report_job_status, name='report-job'),
     path('jobs/<uuid:job_id>/download/', download_report_job, name='report-job-download'),
     path('report_export/', export_to_pdf, name='report-export'),

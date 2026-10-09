@@ -1,7 +1,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name wrs-agentic;
+    server_name wrs-agentic 54.166.216.124;
     client_max_body_size 20M;
 
     location /static/ {

@@ -23,12 +23,17 @@ if not p.exists():
         'DJANGO_SECRET_KEY=' + secrets.token_hex(48),
         'DB_PASSWORD=' + secrets.token_hex(32),
         'DB_NAME=wrs_app', 'DB_USER=wrs_app', 'DB_HOST=127.0.0.1', 'DB_PORT=3306',
-        'DJANGO_ALLOWED_HOSTS=wrs-agentic,localhost,127.0.0.1',
-        'DJANGO_CSRF_TRUSTED_ORIGINS=http://wrs-agentic',
+        'DJANGO_ALLOWED_HOSTS=wrs-agentic,54.166.216.124,localhost,127.0.0.1',
+        'DJANGO_CSRF_TRUSTED_ORIGINS=http://wrs-agentic,http://54.166.216.124',
         'DJANGO_STATIC_ROOT=/var/lib/wrs-app/staticfiles',
         'DJANGO_EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend',
     ]) + '\n')
     p.chmod(0o600)
+else:
+    text = p.read_text()
+    text = text.replace('DJANGO_ALLOWED_HOSTS=wrs-agentic,localhost,127.0.0.1', 'DJANGO_ALLOWED_HOSTS=wrs-agentic,54.166.216.124,localhost,127.0.0.1')
+    text = text.replace('DJANGO_CSRF_TRUSTED_ORIGINS=http://wrs-agentic\n', 'DJANGO_CSRF_TRUSTED_ORIGINS=http://wrs-agentic,http://54.166.216.124\n')
+    p.write_text(text)
 PY
 systemctl enable --now mariadb
 python3 - <<'PY'
@@ -53,6 +58,7 @@ values = dict(line.split('=', 1) for line in Path('/etc/wrs-app/wrs-app.env').re
 env = {**os.environ, **values}
 for args in (['check'], ['migrate', '--noinput'], ['collectstatic', '--noinput']):
     subprocess.run(['runuser', '-u', 'wrs-app', '--', '/opt/wrs-app/.venv/bin/python', 'manage.py', *args], cwd='/opt/wrs-app', env=env, check=True)
+subprocess.run(['runuser', '-u', 'wrs-app', '--', '/opt/wrs-app/.venv/bin/python', 'deploy/check_application.py'], cwd='/opt/wrs-app', env=env, check=True)
 PY
 install -m 0644 /opt/wrs-app/deploy/wrs-app.service /etc/systemd/system/wrs-app.service
 install -m 0644 /opt/wrs-app/deploy/wrs-agentic.nginx /etc/nginx/sites-available/wrs-agentic

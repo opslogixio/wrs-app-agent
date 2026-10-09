@@ -52,7 +52,7 @@
                       <th class = "order-by-desc">Repair Order</th>
                       <th>RO Status</th>
                       <th>Claim Tag</th>
-                      <th>Created Date</th>
+                      <th class="data-sort">Created Date</th>
                       <th>Comments</th>
                     </tr>
                   </thead>
@@ -76,7 +76,7 @@
                         {% endfor %}
                         </td>
                       
-                        <td>{{ claim.created_date }}</td>
+                        <td data-sort="{{ claim.created_date|date:'Ymd' }}">{{ claim.created_date }}</td>
                         <td>{{ claim.new_comment|default:"No comment" }}</td>
                       </tr>
                     {% endfor %}  
@@ -95,7 +95,7 @@
                     <tr>
                       <th class = "order-by-desc">Repair Order</th>
                       <th>Claim Tag</th>
-                      <th>Created Date</th>
+                      <th class="data-sort">Created Date</th>
                       <th>Comments</th>
                     </tr>
                   </thead>
@@ -116,7 +116,7 @@
                         {% endfor %}
                         </td>
                       
-                        <td>{{ claim.created_date }}</td>
+                        <td data-sort="{{ claim.created_date|date:'Ymd' }}">{{ claim.created_date }}</td>
                         <td>{{ claim.new_comment|default:"" }}</td>
                       </tr>
                     {% endfor %}  

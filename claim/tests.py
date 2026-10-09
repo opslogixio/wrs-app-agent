@@ -175,3 +175,30 @@ class SecurityBaselineTests(TestCase):
         response = self.client.post(reverse('claim:upload-pdf'), {'claim_id': self.foreign.pk, 'pdf_file': SimpleUploadedFile('file.pdf', b'%PDF-1.4\n')})
         self.assertEqual(response.status_code, 404)
         self.assertFalse(PdfFile.objects.exists())
+
+    def test_assigned_dealer_claim_page_remains_accessible(self):
+        response = self.client.get(reverse('claim:dealer-claim-update', args=[self.claim.pk, self.own.pk]))
+        self.assertEqual(response.status_code, 200)
+        form = response.context['form']
+        for name in ('service_writer', 'technician'):
+            self.assertEqual(set(form.fields[name].queryset.values_list('pk', flat=True)), {self.dealer.pk, self.viewer.pk})
+
+    def test_admin_rejects_nonfinite_or_out_of_range_claim_totals(self):
+        self.client.force_login(self.admin)
+        for amount in ('NaN', 'Infinity', '100000000', '1.001'):
+            with self.subTest(amount=amount):
+                response = self.client.post(reverse('claim:line-updates'), {'line_id': self.line.pk, 'claim_status': self.status.pk, 'claim_total': amount})
+                self.assertEqual(response.status_code, 400)
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.claim_total, Decimal('123.45'))
+
+    def test_valid_pdf_upload_and_authenticated_download(self):
+        with tempfile.TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory, BASE_DIR=Path(directory)):
+            response = self.client.post(reverse('claim:upload-pdf'), {'claim_id': self.claim.pk, 'pdf_file': SimpleUploadedFile('claim.pdf', b'%PDF-1.4\n')})
+            self.assertEqual(response.status_code, 302)
+            pdf = PdfFile.objects.get()
+            response = self.client.get(reverse('claim:download-pdf', args=[pdf.pk]))
+            self.assertEqual(response.status_code, 200)
+            response.close()
+            self.client.logout()
+            self.assertEqual(self.client.get(reverse('claim:download-pdf', args=[pdf.pk])).status_code, 302)

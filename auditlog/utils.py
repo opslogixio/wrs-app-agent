@@ -115,7 +115,8 @@ def log_model_event(
         request_id=get_request_id(),
         ip_address=_get_ip(request),
         user_agent=_get_user_agent(request),
-        session_key=_get_session_key(request),
+        # Session IDs are bearer credentials and must not be copied into audit records.
+        session_key=None,
 
         dealership=dealership,
         claim=claim,

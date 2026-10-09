@@ -1,5 +1,5 @@
 {% extends 'partials/base.html' %}
-{% load static %}
+{% load static humanize %}
 {% block css %}{% include 'partials/css.html' %}{% endblock %}
 {% block contents %}
 <div class="card">
@@ -25,7 +25,7 @@
     </div>
     <dl class="row mb-3">
       <dt class="col-sm-2">RO Status</dt><dd class="col-sm-4">{{ claim.ro_status.name|default:"Not set" }}</dd>
-      <dt class="col-sm-2">Claim Total</dt><dd class="col-sm-4">${{ claim.search_total|floatformat:2 }}</dd>
+      <dt class="col-sm-2">Claim Total</dt><dd class="col-sm-4">${{ claim.search_total|floatformat:2|intcomma }}</dd>
       <dt class="col-sm-2">Created</dt><dd class="col-sm-4">{{ claim.created_date|date:"M j, Y"|default:"Not set" }}</dd>
       <dt class="col-sm-2">Last Updated</dt><dd class="col-sm-4">{{ claim.modified_date|date:"M j, Y"|default:"Not set" }}</dd>
       <dt class="col-sm-2">Tags</dt><dd class="col-sm-10">{% for tag in claim.claim_tag.all %}<span class="badge bg-secondary">{{ tag.name }}</span> {% empty %}None{% endfor %}</dd>
@@ -33,25 +33,14 @@
     <h3 class="h5">Claim Lines</h3>
     <div class="table-responsive">
       <table class="table table-bordered table-hover">
-        <thead><tr><th>Line</th><th>Claim Type</th><th>Status</th><th>Amount</th><th>Completion Date</th><th>Paid Date</th><th>Compliant</th><th>Service Writer</th><th>Technician</th><th>Discrepancy Total</th></tr></thead>
+        <thead><tr><th>Line</th><th>Claim Type</th><th>Status</th><th>Amount</th><th>Completion Date</th><th>Paid Date</th><th>Discrepancy Total</th></tr></thead>
         <tbody>
         {% for line in claim.search_lines %}
-          <tr><td>{{ line.line_num|default:"—" }}</td><td>{{ line.claim_type.name|default:"Not set" }}</td><td>{{ line.claim_status.name|default:"Not set" }}</td><td>${{ line.claim_total|default_if_none:0|floatformat:2 }}</td><td>{{ line.start_date|date:"M j, Y"|default:"Not set" }}</td><td>{{ line.paid_date|date:"M j, Y"|default:"Not set" }}</td><td>{{ line.compliant|yesno:"Yes,No,Not set" }}</td><td>{% if line.service_writer %}{{ line.service_writer.get_full_name|default:line.service_writer.email }}{% else %}Not assigned{% endif %}</td><td>{% if line.technician %}{{ line.technician.get_full_name|default:line.technician.email }}{% else %}Not assigned{% endif %}</td><td>{% if line.search_discrepancy != None %}${{ line.search_discrepancy|floatformat:2 }}{% else %}None{% endif %}</td></tr>
-        {% empty %}<tr><td colspan="10">No claim lines recorded.</td></tr>{% endfor %}
+          <tr><td>{{ line.line_num|default:"—" }}</td><td>{{ line.claim_type.name|default:"Not set" }}</td><td>{{ line.claim_status.name|default:"Not set" }}</td><td>${{ line.claim_total|default_if_none:0|floatformat:2|intcomma }}</td><td>{{ line.start_date|date:"M j, Y"|default:"Not set" }}</td><td>{{ line.paid_date|date:"M j, Y"|default:"Not set" }}</td><td>{% if line.search_discrepancy != None %}${{ line.search_discrepancy|floatformat:2|intcomma }}{% else %}None{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="7">No claim lines recorded.</td></tr>{% endfor %}
         </tbody>
       </table>
     </div>
-    <h3 class="h5">Comments</h3>
-    {% for entry in claim.search_comments %}
-      <div class="border rounded p-2 mb-2">
-        <p class="small text-muted mb-1">{{ entry.created_date|date:"M j, Y" }} · {% if entry.user %}{{ entry.user.get_full_name|default:entry.user.email }}{% else %}Unknown user{% endif %} · {% if entry.line %}Line {{ entry.line.line_num }}{% else %}Claim comment{% endif %}</p>
-        <div>{{ entry.comment|linebreaksbr }}</div>
-      </div>
-    {% empty %}<p class="text-muted">No comments recorded.</p>{% endfor %}
-    <h3 class="h5">Attachments</h3>
-    <ul class="mb-0">
-      {% for attachment in claim.search_attachments %}<li><a href="{% url 'claim:download-pdf' pdf_id=attachment.pk %}">{{ attachment.pdf_name|default:"Download attachment" }}</a> <span class="text-muted">({{ attachment.created_date|date:"M j, Y" }})</span></li>{% empty %}<li>No attachments uploaded.</li>{% endfor %}
-    </ul>
   </div>
 </article>
 {% empty %}

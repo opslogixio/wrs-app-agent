@@ -1322,13 +1322,8 @@ def search_repair_order(request):
         'claim_tag',
         Prefetch('linetable_set', queryset=lines_for_user(request.user).filter(
             dealership=dealership).select_related(
-                'claim_type', 'claim_status', 'service_writer', 'technician', 'discrepancy'),
+                'claim_type', 'claim_status', 'discrepancy'),
             to_attr='search_lines'),
-        Prefetch('journal_set', queryset=Journal.objects.filter(
-            Q(line__isnull=True) | Q(line__in=lines_for_user(request.user))
-        ).select_related('user', 'line').order_by('-created_date', '-id'), to_attr='search_comments'),
-        Prefetch('pdffile_set', queryset=PdfFile.objects.order_by('-created_date', '-id'),
-            to_attr='search_attachments'),
     ).order_by('repair_order', 'id')
     page = Paginator(claims, 10).get_page(request.GET.get('page'))
     for claim in page:

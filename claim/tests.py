@@ -691,12 +691,23 @@ class RepairOrderSearchTests(TestCase):
         attachment = PdfFile.objects.create(claim=self.claim, pdf_name='Repair photo', pdf_file='private/photo.png')
         response = self.search(' 123 ')
         for text in ('Repair Order 123', 'Requires Attention', 'Warranty', '$123.45', 'Bodyshop',
-                     'Repair photo', 'Customer called &lt;script&gt;', 'name="repair_order"', 'value="123"'):
+                     'name="repair_order"', 'value="123"'):
             self.assertContains(response, text)
-        self.assertContains(response, reverse('claim:download-pdf', args=[attachment.pk]))
+        for hidden in ('Compliant', 'Service Writer', 'Technician', 'Comments', 'Attachments', 'Repair photo', 'Customer called'):
+            self.assertNotContains(response, hidden)
+        self.assertNotContains(response, reverse('claim:download-pdf', args=[attachment.pk]))
         self.assertContains(response, reverse('claim:dealer-claim-update', args=[self.claim.pk, self.own.pk]))
         self.assertNotContains(response, '<script>alert(1)</script>')
         self.assertEqual([claim.pk for claim in response.context['repair_orders']], [self.claim.pk])
+
+    def test_search_formats_all_dollar_amounts_with_commas(self):
+        from .models import Discrepancy
+        self.line.claim_total = Decimal('1234567.89')
+        self.line.discrepancy = Discrepancy.objects.create(labor=Decimal('2345.67'))
+        self.line.save()
+        response = self.search()
+        self.assertContains(response, '$1,234,567.89', count=2)
+        self.assertContains(response, '$2,345.67')
 
     def test_search_rejects_foreign_dealership_and_legacy_line_leaks(self):
         response = self.search(dealership_id=self.other.pk)

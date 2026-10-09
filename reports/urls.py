@@ -1,10 +1,11 @@
 from django.urls import path
-from reports.views import Reports, DailyReportsView, ArchiveDailyReportsView, OpenClaimsReportView, DiscrepancyReportView, RaReportView, update_ro_status, export_to_pdf, historical_claim_view, historical_linetable_view, historical_journal_view, list_report_files
+from reports.views import download_report, Reports, DailyReportsView, ArchiveDailyReportsView, OpenClaimsReportView, DiscrepancyReportView, RaReportView, update_ro_status, export_to_pdf, historical_claim_view, historical_linetable_view, historical_journal_view, list_report_files
 from django.contrib.auth.decorators import login_required
 
 app_name = 'reports'
 
 urlpatterns = [
+    path('download/<path:relative_path>', download_report, name='download-report'),
     path('<int:dealership_id>', Reports.as_view(), name='reports'),
     path('daily_reports_view/<int:dealership_id>', DailyReportsView.as_view(), name='daily-reports-view'),
     path('archive_daily_reports_view', ArchiveDailyReportsView.as_view(), name='archive-daily-reports-view'),

@@ -14,10 +14,10 @@ class CustomLoginView(auth_views.LoginView):
     template_name = 'auth/login.html'
 
     def get_success_url(self):
-        print("We are in get success: ", self.request)
+        pass
         #redirect_url = CustomBackend().get_redirect_url(self.request)
-        redirect_url = self.request.user.redirect_url
-        print("Custom Login View Redirect Returned: ", redirect_url)
+        redirect_url = CustomBackend().get_redirect_url(self.request.user)
+        pass
         if redirect_url:
             return redirect_url
         return super().get_success_url()
@@ -27,7 +27,7 @@ class CustomLoginView(auth_views.LoginView):
         #if redirect_url != self.request.path:
         #     #Check if the user is authenticated and has a redirect_url attribute
         #    if self.request.user.is_authenticated and hasattr(self.request.user, 'redirect_url'):
-        #        redirect_url = self.request.user.redirect_url
+        #        redirect_url = CustomBackend().get_redirect_url(self.request.user)
         #    return redirect(redirect_url)
       #  return super().form_valid(form)
 

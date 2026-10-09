@@ -23,7 +23,7 @@ with connection.cursor() as cursor:
     assert database == os.environ.get('DB_NAME', 'wrs_app'), database
 print(f'Database connection passed: {database}, {version}')
 
-client = Client(HTTP_HOST='wrs-agentic')
+client = Client(HTTP_HOST='wrs.opslogix.io', HTTPS='on')
 assert client.get('/accounts/login/').status_code == 200
 assert client.get('/').status_code == 302
 assert client.get('/admin/').status_code == 302

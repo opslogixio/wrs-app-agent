@@ -93,7 +93,10 @@
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <a href="{% url 'claim:delete-claim' dealership=dealership repair_order=repair_order %}" class="btn btn-danger">Delete</a>
+                                <form action="{% url 'claim:delete-claim' dealership=dealership repair_order=repair_order %}" method="post">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger">Delete</button>
+                                </form>
                             </div>
                         </div>
                     </div>

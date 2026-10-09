@@ -193,3 +193,30 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CSRF_TRUSTED_ORIGINS = [origin for origin in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://wrs-agentic').split(',') if origin]
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Private documents are served only through authorized download views.
+REPORT_ROOT = Path(os.environ.get('DJANGO_REPORT_ROOT', BASE_DIR / 'static' / 'daily-report-pdf'))
+DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = os.environ.get('DJANGO_HTTPS', 'false').lower() == 'true'
+CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
+SECURE_SSL_REDIRECT = SESSION_COOKIE_SECURE
+SECURE_HSTS_SECONDS = 31536000 if SESSION_COOKIE_SECURE else 0
+
+# Never collect private documents into the web server's static directory.
+from django.contrib.staticfiles.finders import FileSystemFinder
+
+
+class PublicAssetsFinder(FileSystemFinder):
+    def list(self, ignore_patterns):
+        yield from super().list([*ignore_patterns, 'upload', 'daily-report-pdf'])
+
+
+STATICFILES_FINDERS = [
+    'core.settings.PublicAssetsFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]

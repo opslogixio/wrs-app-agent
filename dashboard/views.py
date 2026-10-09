@@ -1,3 +1,5 @@
+from decorators.access import in_group_required, get_dealership, safe_return_url
+from django.db.models.functions import ExtractMonth
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist
@@ -16,7 +18,8 @@ from decorators.dealeraccess import user_has_dealership_access
 
 @login_required
 def dashboard_view(request):
-    redirect_url = request.session.get('redirect_url')
+    from accounts.custom_backend import CustomBackend
+    redirect_url = CustomBackend().get_redirect_url(request.user)
     if request.user.is_authenticated and redirect_url:
         return redirect(redirect_url)  # Redirect to the user's login URL
     else:
@@ -101,7 +104,7 @@ def build_dealer_dashboard(request, dealership_id):
         )
 
         open_ro_count = open_ro_count_info['open_ro_count']
-        print("NUMBER OF OPEN RO:", open_ro_count)
+        pass
 
         # Filter the LineTable to get the count of 'Paid' claims that are 90 days or more old
         requires_attention_expire_info = LineTable.objects.filter(claim_status__name='Requires Attention', dealership_id=dealership_obj.pk, start_date__lte=ninety_days_ago).aggregate(
@@ -233,11 +236,11 @@ def build_dashboard(dealerships):
     agg_yearly_total = 0
     agg_monthly_total = 0
     
+    open_status = get_object_or_404(RoStatus, name='Open')
     for dealership in dealerships:
         try:
-            dealership_obj = Dealership.objects.get(name=dealership)
-            print("Do we have complaince?", dealership_obj.compliance_enable)
-            open_status = get_object_or_404(RoStatus, name='Open')
+            dealership_obj = dealership
+            pass
             ## claim counts and totals
             new_claims_count = LineTable.objects.filter(claim_status__name='New', dealership_id=dealership_obj.pk).count()
 
@@ -302,9 +305,9 @@ def build_dashboard(dealerships):
             claim__dealership=dealership
             ).aggregate(total_amount=Sum('claim_total'))['total_amount'] or 0
             
-            print("----------------------------------------------------------")
-            print("This is paid monthly total!", paid_claims_monthly_total)
-            print("----------------------------------------------------------")
+            pass
+            pass
+            pass
 
             paid_claims_yearly_total = LineTable.objects.filter(
                 claim_status__name='Paid',
@@ -402,7 +405,7 @@ def build_dashboard(dealerships):
     return dashboard_data, aggregate_context
 
 
-@login_required
+@in_group_required('wrs-admin')
 def admin_dashboard_view(request):
     dealerships = Dealership.objects.filter(users=request.user)
 
@@ -410,7 +413,7 @@ def admin_dashboard_view(request):
 
     return render(request, 'dashboard/admin-dashboard.html', {'dashboard_items': dashboard_data, **aggregate_context})
 
-@login_required
+@in_group_required('dealer-admin', 'wrs-admin')
 def dealer_admin_dashboard_view(request):
     dealerships = Dealership.objects.filter(users=request.user)
 
@@ -440,53 +443,22 @@ def user_dashboard_view(request):
 
 ###################################################  FUNCTIONS  ##########################################
 
+@login_required
+@require_GET
 def get_charts_data(request, dealership_id):
-    dealership = get_object_or_404(Dealership, id=dealership_id)
-    claim_types = ClaimType.objects.all()
-
-    current_month = now().month
+    dealership = get_dealership(request.user, dealership_id)
     current_year = now().year
-
-    # Initialize a list to store data for each claim type
-    series_data = []
-
-    # Iterate through each ClaimType
-    for claim_type in claim_types:
-        # Initialize a dictionary to store data for the current claim type
-        claim_type_data = {
-            'name': claim_type.name,
-            'data': []
-        }
-
-        # Get the Status object for the "Paid" status
-        paid_status = Status.objects.get(name="Paid")
-
-        # Iterate through each month
-        for month in range(1, 13):
-            # Filter LineTable objects for the current month, current ClaimType, and dealership
-            claims_info = LineTable.objects.filter(
-                paid_date__month=month,
-                paid_date__year=current_year,
-                claim_type=claim_type,
-                claim_status=paid_status,
-                dealership=dealership
-            ).aggregate(
-                claims_total=Sum('claim_total')
-            )
-
-            #print(month, claim_type, claims_info['claims_total'] or 0)
-            claims_total = claims_info['claims_total'] or 0
-
-            # Append data to the claim type dictionary
-            claim_type_data['data'].append(claims_total)
-
-        # Append the claim type data to the list
-        series_data.append(claim_type_data)
-
-    #print(series_data)
-
-    # Return the list of claim type data as JSON
-    return JsonResponse({'series': series_data})
+    rows = (LineTable.objects.filter(
+        dealership=dealership, claim_status__name='Paid',
+        paid_date__gte=date(current_year, 1, 1), paid_date__lt=date(current_year + 1, 1, 1),
+    ).order_by().annotate(month=ExtractMonth('paid_date'))
+        .values('claim_type_id', 'month').annotate(total=Sum('claim_total')))
+    totals = {(row['claim_type_id'], row['month']): row['total'] or 0 for row in rows}
+    series = [
+        {'name': claim_type.name, 'data': [totals.get((claim_type.pk, month), 0) for month in range(1, 13)]}
+        for claim_type in ClaimType.objects.all()
+    ]
+    return JsonResponse({'series': series})
 
 
 def get_compliance(dealership_id): ## NOT USED YET ###

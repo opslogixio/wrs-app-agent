@@ -111,7 +111,7 @@
               </div>
               <div class="col-12 mb-3" >
                 {% for file in pdf_file %}
-                &nbsp;<a href="{{ file.pdf_file.url }}" target="_blank">{{ file.pdf_name }}</a></br>
+                &nbsp;<a href="{% url 'claim:download-pdf' file.id %}" target="_blank">{{ file.pdf_name }}</a></br>
                 {% endfor %}
               </div>  
             </div>

@@ -1,3 +1,10 @@
+from pathlib import Path
+from django.db import transaction
+from django.http import FileResponse, Http404
+from django.views.decorators.http import require_GET, require_POST
+from django.urls import reverse
+from decorators.access import (in_group_required, accessible_dealerships, get_dealership,
+    claims_for_user, lines_for_user, positive_id, safe_return_url, is_wrs_admin, DealershipAccessMixin)
 from django.shortcuts import render, get_object_or_404, redirect
 from datetime import date, datetime, timedelta
 from django.http import HttpResponseRedirect, HttpResponse, HttpResponseBadRequest, JsonResponse, HttpResponseNotAllowed
@@ -22,22 +29,13 @@ from django.conf import settings
 
 ## Function to check group for permissions ##########################################
 
-def in_group_required(*group_names):
-    def decorator(view_func):
-        def wrapped_view(request, *args, **kwargs):
-            if request.user.groups.filter(name__in=group_names).exists():
-                return view_func(request, *args, **kwargs)
-            else:
-                return redirect('claim:not-authorized')  # Redirect to the not-authorized page
-        return wrapped_view
-    return decorator
 
 def update_daily_report_database(dealership_id, start):
     #user = CustomUser.objects.filter(id__in=[2, 14])
     dealership = Dealership.objects.get(id=dealership_id)
 
-    print("Report Date:", start)
-    print("This is a report for", dealership.name)
+    pass
+    pass
 
     # Fetch LineTable records
     line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date=start).order_by('claim__repair_order')
@@ -104,8 +102,8 @@ def update_daily_report_database(dealership_id, start):
 
         for line_data in lines:
             # Create or update HistoricalLineTable entry
-            print(f"Line Data: {line_data}")
-            print("Line ID: ", line_data['line_table_id'])
+            pass
+            pass
 
             historical_line, line_created = HistoricalLineTable.objects.update_or_create(
                 claim=historical_claim,
@@ -121,7 +119,7 @@ def update_daily_report_database(dealership_id, start):
                     'created_date': timezone.now() - timedelta(days=1)
                 }
             )
-            print("Here is the LINE NUM", line_data['line_num'])
+            pass
             # Fetch comments specifically associated with this line
             line_journals = Journal.objects.filter(
                 line_id=line_data['line_table_id'],
@@ -131,7 +129,7 @@ def update_daily_report_database(dealership_id, start):
             #).values_list('comment', flat=True)
 
             #print(f"Comments for Line {line_data['line_num']}: {list(line_comments)}")
-            print(f"Found {line_journals.count()} Journal record(s) for Line {line_data['line_num']}.")
+            pass
 
             # Create HistoricalJournal entries for this line
             for journal in line_journals:
@@ -241,8 +239,8 @@ class ReportService:
                 to_attr='lines'
             )
         )
-        print("This is the start date", start_date)
-        print("This is the dealership ID", dealership_id)
+        pass
+        pass
         #print("This is a historical claim", claims)
 
         # Create a dictionary to store results
@@ -250,7 +248,7 @@ class ReportService:
         
         # Loop through each claim (repair order)
         for claim in claims:
-            print("We are in claims loop")
+            pass
             claim_data = {
                 'repair_order': claim.repair_order,
                 'ro_status': claim.ro_status.name,
@@ -259,7 +257,7 @@ class ReportService:
             
             # Loop through associated lines (HistoricalLineTable)
             for line in claim.lines:
-                print("Historical Line Table Line: ", line.line_num)
+                pass
                 line_data = {
                     'line_num': line.line_num,
                     'claim_total': line.claim_total,
@@ -281,7 +279,7 @@ class ReportService:
     
     @staticmethod
     def generate_discrepancy_report(dealership_id, start_date, end_date):
-        print("This is start and end in discrepancy report run", start_date, "AND", end_date)
+        pass
         # Query claims that have discrepancies within the date range
         # Filter LineTable objects by 'modified_date' within the date range and related to the given dealership
         discrepancy_lines = LineTable.objects.filter(
@@ -348,7 +346,7 @@ class ReportService:
                 #comments = list(line.journal_set.values_list('comment', flat=True))
                 latest_comment = line.journal_set.order_by('-created_date').first()
                 comments = latest_comment.comment if latest_comment else "No Comment"
-                print("This is the comment on RA:", comments)
+                pass
 
                 claim_info['lines'].append({
                     'line': line,
@@ -395,14 +393,26 @@ def get_claim_status_totals(dealership_id, start_date):
 
     return claim_status_totals
 
+@in_group_required('dealer-admin', 'wrs-admin')
+@require_GET
 def export_to_pdf(request):
     # Get the data for the report
     dealership = request.GET.get('dealership')
-    dealership_obj = get_object_or_404(Dealership, name=dealership)
+    dealership_obj = get_object_or_404(accessible_dealerships(request.user), name=dealership)
     report_type = request.GET.get('report_type')
+    if report_type not in {'Daily Report', 'Archived Report', 'Discrepancy Report', 'RA Report'}:
+        return HttpResponseBadRequest('Invalid report type.')
     start_date_request = request.GET.get('start_date')
     end_date_request = request.GET.get('end_date')
-    print("THIS IS THE DATES", start_date_request, "AND", end_date_request)
+    try:
+        if report_type in {'Daily Report', 'Archived Report', 'Discrepancy Report'}:
+            datetime.strptime(start_date_request, '%Y-%m-%d')
+        if report_type == 'Discrepancy Report':
+            if datetime.strptime(end_date_request, '%Y-%m-%d') < datetime.strptime(start_date_request, '%Y-%m-%d'):
+                raise ValueError
+    except (TypeError, ValueError):
+        return HttpResponseBadRequest('Invalid report date range.')
+    pass
 
     if report_type == "Daily Report":
         start_date = datetime.strptime(start_date_request, '%Y-%m-%d').date()
@@ -500,11 +510,12 @@ def export_to_pdf(request):
 
     # If PDF generation failed, return an error
     if pisa_status.err:
-        return HttpResponse('PDF generation failed.')
+        return HttpResponse('PDF generation failed.', status=500)
 
     # Set the appropriate PDF headers for download
     response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="daily_report_{dealership}.pdf"'
+    response['Content-Disposition'] = 'attachment; filename="daily_report.pdf"'
+    response['Cache-Control'] = 'private, no-store'
 
     return response
  
@@ -519,9 +530,9 @@ def get_repair_orders_by_date(dealership_id, start_date): # THIS IS NO LONGER US
             to_attr='lines'
         )
     )
-    print("This is the start date", start_date)
-    print("This is the dealership ID", dealership_id)
-    print("This is a historical claim", claims)
+    pass
+    pass
+    pass
 
     # Create a dictionary to store results
     result = []
@@ -555,49 +566,46 @@ def get_repair_orders_by_date(dealership_id, start_date): # THIS IS NO LONGER US
 
     return result
 
+@in_group_required('dealer-admin', 'wrs-admin')
+@require_POST
+@transaction.atomic
 def update_ro_status(request):
-    if request.method == 'POST':
-        try:
-            # Parse the incoming JSON data
-            data = json.loads(request.body)
-            claim_ids = data.get('claim_ids', [])
-            new_ro_status = data.get('ro_status', '')
-
-            if not claim_ids or not new_ro_status:
-                return JsonResponse({'success': False, 'error': 'Missing claim IDs or status'}, status=400)
-
-            # Fetch the new status object
-            ro_status = get_object_or_404(RoStatus, name=new_ro_status)
-
-            # Update each claim
-            for claim_id in claim_ids:
-                claim = get_object_or_404(Claim, id=claim_id)
-                claim.ro_status = ro_status
-                claim.save()
-
-                # Optionally log the event
-                user_id = request.user.id
-                # update_event = event_log(claim_id, line=None, user=user_id, comment=f"user set the repair order status to {claim.ro_status.name}")
-
-            return JsonResponse({'success': True})
-
-        except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)}, status=500)
-    
-    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=400)
+    try:
+        data = json.loads(request.body)
+        if not isinstance(data, dict):
+            raise ValueError
+        claim_ids = data.get('claim_ids')
+        if not isinstance(claim_ids, list) or not 1 <= len(claim_ids) <= 200:
+            raise ValueError
+        if any(type(value) is not int or value <= 0 for value in claim_ids):
+            raise ValueError
+        status_name = data.get('ro_status')
+        if not isinstance(status_name, str) or not status_name:
+            raise ValueError
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return JsonResponse({'success': False, 'error': 'Invalid claim IDs or status.'}, status=400)
+    ro_status = get_object_or_404(RoStatus, name=status_name)
+    claims = list(claims_for_user(request.user).select_for_update().filter(pk__in=claim_ids))
+    if len(claims) != len(set(claim_ids)):
+        raise Http404
+    for claim in claims:
+        claim.ro_status = ro_status
+        # Keep save signals so audit logging remains complete.
+        claim.save(update_fields=['ro_status', 'modified_date'])
+    return JsonResponse({'success': True})
 
 
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class Reports(TemplateView):
+class Reports(DealershipAccessMixin, TemplateView):
 
     template_name = 'reports/reports.html'
   
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         dealership_id = self.kwargs['dealership_id']
-        dealership = get_object_or_404(Dealership, id=dealership_id)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
         context['dealership'] = dealership.name
-        context['dealerships'] = Dealership.objects.all()
+        context['dealerships'] = accessible_dealerships(self.request.user)
         user = self.request.user
         is_superuser = user.is_superuser
         context['is_superuser'] = is_superuser
@@ -616,11 +624,13 @@ class Reports(TemplateView):
                 'dealership_id': dealership_id,
             })
         
+        if 'dealership' in form.fields and hasattr(form.fields['dealership'], 'queryset'):
+            form.fields['dealership'].queryset = accessible_dealerships(self.request.user)
         context['form'] = form
         return context
     
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class DailyReportsView(View):
+class DailyReportsView(DealershipAccessMixin, View):
     template_name = 'reports/dailyreportsview.html'
 
     def get_context_data(self, **kwargs):
@@ -631,7 +641,7 @@ class DailyReportsView(View):
 
     def get(self, request, *args, **kwargs):
         dealership_id = kwargs.get('dealership_id')
-        dealership = get_object_or_404(Dealership, pk=dealership_id)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), pk=dealership_id)
         start_date = datetime.now()
 
         report = ReportService.generate_daily_report(dealership.id, start_date)
@@ -668,7 +678,7 @@ class ArchiveDailyReportsView(View):
         if form.is_valid():
             # Process the data in form.cleaned_data
             dealership = form.cleaned_data['dealership']
-            dealership = get_object_or_404(Dealership, name=dealership)
+            dealership = get_object_or_404(accessible_dealerships(self.request.user), name=dealership)
             dealership_id = dealership.id
 
             report_type = form.cleaned_data['report_type']
@@ -676,16 +686,17 @@ class ArchiveDailyReportsView(View):
             start_date = start
             start_date_path = start_date.strftime("%Y/%m/%d")
             dealership_slug = dealership.name.replace(" ", "_")
-            pdf_url = f"https://portal.warrantyrevenue.com/static/daily-report-pdf/{dealership_slug}/{start_date_path}/{dealership_slug}-daily-report-{start_date}.pdf"
+            relative_path = f"{dealership_slug}/{start_date_path}/{dealership_slug}-daily-report-{start_date}.pdf"
+            pdf_url = reverse("reports:download-report", kwargs={"relative_path": relative_path})
             pdf_exists = os.path.exists(
-                f"/home/ubuntu/production/wrs-app/static/daily-report-pdf/{dealership_slug}/{start_date_path}/{dealership_slug}-daily-report-{start_date}.pdf"
+                Path(settings.REPORT_ROOT) / relative_path
             )
             #start_date = datetime.strptime(start, '%d %b, %Y').date()
-            print("BEFORE GEN", start_date)
+            pass
             #start_date = datetime.strptime(start, '%Y-%m-%d').date()
             #report = get_repair_orders_by_date(dealership_id, start_date)
             report = ReportService.generate_archived_report(dealership.id, start_date)
-            print("This is a report", report)
+            pass
             if not report:
                 context = { 
                     'message': "There is no report data for this date",
@@ -708,7 +719,7 @@ class ArchiveDailyReportsView(View):
             return HttpResponse("Invalid form data")
 
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')        
-class OpenClaimsReportView(View):
+class OpenClaimsReportView(DealershipAccessMixin, View):
     template_name = 'reports/openreportsview.html'
 
     def get_context_data(self, **kwargs):
@@ -716,7 +727,7 @@ class OpenClaimsReportView(View):
         context = {}
         
         dealership_id = self.kwargs['dealership_id']
-        dealership = get_object_or_404(Dealership, id=dealership_id)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
 
         # Get the 'Open' ro_status instance
         open_status = get_object_or_404(RoStatus, name='Open')
@@ -759,7 +770,7 @@ class DiscrepancyReportView(View):
         # Context setup
         context = {}
         dealership_id = self.kwargs['dealership_id']
-        dealership = get_object_or_404(Dealership, id=dealership_id)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
 
         context['report_type'] = "Discrepancy Report"
         context['dealership'] = dealership
@@ -776,18 +787,18 @@ class DiscrepancyReportView(View):
     #    return total
     
     def post(self, request):
-        print("This is the POST",request.POST)
+        pass
         form = self.form_class(request.POST)
         if form.is_valid():
             # Process the data in form.cleaned_data
             dealership = form.cleaned_data['dealership']
-            dealership = get_object_or_404(Dealership, id=dealership)
+            dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership)
             dealership_id = dealership.id
 
             # Get the start and end date from the form
             start_date = form.cleaned_data['start_date']
             end_date = form.cleaned_data['end_date']
-            print("THIS IS START AND END", start_date, "AND", end_date)
+            pass
 
             report = ReportService.generate_discrepancy_report(dealership.id, start_date, end_date)
 
@@ -824,7 +835,7 @@ class DiscrepancyReportView(View):
 
             return render(request, self.template_name, context)
         else:
-            print(form.errors)
+            pass
             return HttpResponse("Invalid form data")
             
 
@@ -832,12 +843,14 @@ class DiscrepancyReportView(View):
         # Get the context
         context = self.get_context_data(**kwargs)
         form = self.form_class()
+        if 'dealership' in form.fields and hasattr(form.fields['dealership'], 'queryset'):
+            form.fields['dealership'].queryset = accessible_dealerships(self.request.user)
         context['form'] = form
         # Render the template with the context
         return render(request, self.template_name, context)
 
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class RaReportView(View):
+class RaReportView(DealershipAccessMixin, View):
     model = Claim
     template_name = 'reports/ra_reportsview.html'
     context_object_name = 'ra_claim_queue'
@@ -847,7 +860,7 @@ class RaReportView(View):
         context = {}
         filter_request = self.kwargs.get('filter_request')
         dealership_id = self.request.GET.get('dealership_id')
-        dealership = get_object_or_404(Dealership, id=dealership_id)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
         user = self.request.user
 
         # Use ReportService to generate the report
@@ -872,8 +885,6 @@ class RaReportView(View):
 
 # HISTORICAL UPDATE AND DELETE
 # Decorator to check if the user belongs to a specific group
-def in_group_required(group_name):
-    return user_passes_test(lambda u: u.is_authenticated and u.groups.filter(name=group_name).exists())
 
 @in_group_required('wrs-admin')
 def historical_claim_view(request):
@@ -929,7 +940,9 @@ def historical_journal_view(request):
 # View the PDF files per dealership
 @in_group_required('wrs-admin')
 def list_report_files(request):
-    base_dir = os.path.join(settings.BASE_DIR, 'static', 'daily-report-pdf')
+    base_dir = settings.REPORT_ROOT
+    if not Path(base_dir).is_dir():
+        return render(request, 'reports/report_file_browser.html', {'folder_structure': []})
 
     folder_structure = []
 
@@ -955,7 +968,7 @@ def list_report_files(request):
                                     days.append({
                                         'day': day,
                                         'files': files,
-                                        'path': f'daily-report-pdf/{dealership}/{year}/{month}/{day}/'
+                                        'path': f'{dealership}/{year}/{month}/{day}/'
                                     })
                             months.append({'month': month, 'days': days})
                     years.append({'year': year, 'months': months})
@@ -964,3 +977,21 @@ def list_report_files(request):
     return render(request, 'reports/report_file_browser.html', {
         'folder_structure': folder_structure
     })
+
+
+@in_group_required('dealer-admin', 'wrs-admin')
+@require_GET
+def download_report(request, relative_path):
+    root = Path(settings.REPORT_ROOT).resolve()
+    path = (root / relative_path).resolve()
+    if not path.is_relative_to(root) or path.suffix.lower() != '.pdf' or not path.is_file():
+        raise Http404
+    folder = Path(relative_path).parts[0]
+    # Legacy filenames use dealership names; ambiguous folder names fail closed.
+    matches = [dealer for dealer in Dealership.objects.all() if dealer.name.replace(' ', '_') == folder]
+    if len(matches) != 1:
+        raise Http404
+    get_dealership(request.user, matches[0].pk)
+    response = FileResponse(path.open('rb'), as_attachment=True, filename=path.name, content_type='application/pdf')
+    response['Cache-Control'] = 'private, no-store'
+    return response

@@ -50,6 +50,9 @@ class Tag(models.Model):
         return self.name
     
 class Claim(models.Model):
+    class Meta:
+        indexes = [models.Index(fields=['dealership', 'repair_order'], name='claim_dealer_ro_idx')]
+
     id = models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)
     repair_order = models.IntegerField(help_text='Enter Repair Order Number')
     dealership = models.ForeignKey(Dealership, on_delete=models.CASCADE, verbose_name='dealership name', null=True, blank=True) 
@@ -139,6 +142,10 @@ class LineTable(models.Model):
     # Metadata
     class Meta:
         ordering = ['id']
+        indexes = [
+            models.Index(fields=['dealership', 'claim_status', 'paid_date'], name='line_dealer_paid_idx'),
+            models.Index(fields=['dealership', 'claim_status', 'start_date'], name='line_dealer_start_idx'),
+        ]
 
     def __str__(self):
         return self.line_num

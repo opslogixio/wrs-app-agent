@@ -1,3 +1,10 @@
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import FileResponse, Http404
+from django.conf import settings
+from pathlib import Path
+from .validators import validate_pdf
+from decorators.access import (in_group_required, accessible_dealerships, get_dealership,
+    claims_for_user, lines_for_user, positive_id, safe_return_url, is_wrs_admin, DealershipAccessMixin)
 from django.shortcuts import render, redirect, get_object_or_404
 from django.forms.models import inlineformset_factory
 from django.forms import modelformset_factory
@@ -13,7 +20,7 @@ from django.views.generic import View, FormView, CreateView, ListView, DetailVie
 from django.views.generic.edit import UpdateView
 from django.views.decorators.http import require_POST, require_GET
 from django.http import HttpResponseRedirect, HttpResponse, HttpResponseBadRequest, JsonResponse, HttpResponseNotAllowed, Http404
-from django.db.models import Q, OuterRef, Subquery
+from django.db.models import Q, OuterRef, Subquery, Count
 from io import BytesIO
 from xhtml2pdf import pisa
 from collections import OrderedDict
@@ -29,15 +36,6 @@ from .forms import ClaimForm, JournalForm, PdfFileForm, ClaimUpdateForm, ClaimLi
 
 ## Function to check group for permissions ##########################################
 
-def in_group_required(*group_names):
-    def decorator(view_func):
-        def wrapped_view(request, *args, **kwargs):
-            if request.user.groups.filter(name__in=group_names).exists():
-                return view_func(request, *args, **kwargs)
-            else:
-                return redirect('claim:not-authorized')  # Redirect to the not-authorized page
-        return wrapped_view
-    return decorator
 
 def is_superuser(user):
     return user.is_superuser
@@ -50,7 +48,7 @@ def is_superuser(user):
 
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
 #@method_decorator(user_passes_test(is_superuser) or in_group_required('Dealer Admin'), name='dispatch')
-class ClaimFormView(View): 
+class ClaimFormView(DealershipAccessMixin, View): 
     claim_form_class = ClaimForm
     journal_form_class = JournalForm
     pdffile_form_class = PdfFileForm
@@ -58,6 +56,7 @@ class ClaimFormView(View):
 
     def get(self, request, dealership_id):
         claim_form = self.claim_form_class()
+        claim_form.fields['dealership'].queryset = accessible_dealerships(request.user).filter(pk=dealership_id)
         journal_form = self.journal_form_class()
         pdffile_form = self.pdffile_form_class()
         user = request.user
@@ -73,12 +72,13 @@ class ClaimFormView(View):
 
     def post(self, request, dealership_id):
         claim_form = self.claim_form_class(request.POST)
+        claim_form.fields['dealership'].queryset = accessible_dealerships(request.user).filter(pk=dealership_id)
         journal_form = self.journal_form_class(request.POST)
         pdffile_form = self.pdffile_form_class(request.POST, request.FILES)
         user = request.user
 
         if claim_form.is_valid() and journal_form.is_valid() and pdffile_form.is_valid():
-            print("WE ARE A VALID CLAIM!")
+            pass
             # Create a new Claim
             claim = claim_form.save(commit=False)
             dealership = claim_form.cleaned_data['dealership'].id
@@ -94,11 +94,11 @@ class ClaimFormView(View):
 
             # Get the list of tags from the form cleaned_data
             tag_list = claim_form.cleaned_data['claim_tag']
-            print("This is our tag list:", tag_list)
+            pass
             # Find the tag with the highest 'id' from the list
             if tag_list:
                 highest_id_tag = max(tag_list, key=lambda tag: tag.id)
-                print("This is our highest tag:", highest_id_tag)
+                pass
                 # Pontential use if tags need to be None:
                 # highest_id_tag = max(tag_list, default=None, key=lambda tag: tag.id) if tag_list else None
                 initial_claim_type = highest_id_tag  # Set 'initial_type' to the tag with the highest 'id'
@@ -107,9 +107,9 @@ class ClaimFormView(View):
 
             if initial_claim_type.name == 'Bodyshop':             
              initial_claim_type = get_object_or_404(ClaimType, name='Repair')
-            print("This is our new tag if its bodyshop initially:", initial_claim_type)
+            pass
             claim_type_init = get_object_or_404(ClaimType, name=initial_claim_type.name)
-            print("This is the claim type init:", claim_type_init)
+            pass
             # Create a new Journal entry associated with the Claim
             journal = journal_form.save(commit=False)
             journal_comment = journal_form.cleaned_data['comment']
@@ -201,7 +201,7 @@ class ClaimDetailView(DetailView):
 #####################################################################################
 
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class ClaimQueueListView(ListView):
+class ClaimQueueListView(DealershipAccessMixin, ListView):
     model = Claim
     template_name = 'claim/claim_queue.html'
     context_object_name = 'claim_queue'
@@ -215,7 +215,7 @@ class ClaimQueueListView(ListView):
         ninety_days_ago = date.today() - timedelta(days=90)
 
         try:
-            dealership = get_object_or_404(Dealership, id=dealership_id)
+            dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
             user = self.request.user
             #dealership_ids = user.dealership.values_list('id', flat=True)
             #queryset = Claim.objects.filter(
@@ -254,10 +254,10 @@ class ClaimQueueListView(ListView):
         context = super().get_context_data(**kwargs)
         filter_request = self.kwargs.get('filter_request')
         dealership_id = self.request.GET.get('dealership_id')
-        dealership = get_object_or_404(Dealership, id=dealership_id)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
         user = self.request.user
         user_groups = user.groups.all()
-        print("This is the group:", user_groups)
+        pass
         filtered_claims = self.get_queryset()
         tags = Tag.objects.filter(claim__in=filtered_claims['bodyshop_claims'] | filtered_claims['other_claims'])
         #dealerships = user.dealership.all()
@@ -278,7 +278,7 @@ class ClaimQueueListView(ListView):
 #####################################################################################
 
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class NewClaimQueueListView(ListView):
+class NewClaimQueueListView(DealershipAccessMixin, ListView):
     model = Claim
     template_name = 'claim/new_claim_queue.html'
     context_object_name = 'new_claim_queue'
@@ -288,16 +288,16 @@ class NewClaimQueueListView(ListView):
         filter_request = self.kwargs.get('filter_request')
         dealership_id = self.request.GET.get('dealership_id')
 
-        print("===== NewClaimQueueListView DEBUG =====")
-        print(f"filter_request={filter_request}")
-        print(f"dealership_id={dealership_id}")
+        pass
+        pass
+        pass
 
         try:
-            dealership = get_object_or_404(Dealership, id=dealership_id)
+            dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
             claim_status_obj = Status.objects.get(name=filter_request)
 
-            print(f"dealership={dealership}")
-            print(f"claim_status_obj={claim_status_obj} id={claim_status_obj.id}")
+            pass
+            pass
 
             new_line_comment = Journal.objects.filter(
                 claim_id=OuterRef('pk'),
@@ -314,14 +314,10 @@ class NewClaimQueueListView(ListView):
                 'claim_tag'
             )
 
-            print(f"Total New queryset count={queryset.count()}")
+            pass
 
             for claim in queryset[:10]:
-                print(
-                    f"Claim ID={claim.id}, "
-                    f"RO={claim.repair_order}, "
-                    f"new_comment={repr(claim.new_comment)}"
-                )
+                pass
 
                 journals = Journal.objects.filter(
                     claim_id=claim.id,
@@ -334,18 +330,18 @@ class NewClaimQueueListView(ListView):
                     'created_date'
                 )
 
-                print(f"  Claim-level NULL line journals={list(journals)}")
+                pass
 
         except (Status.DoesNotExist, Dealership.DoesNotExist) as e:
-            print(f"NewClaimQueueListView ERROR: {e}")
+            pass
             queryset = Claim.objects.none()
 
         bodyshop_claims = queryset.filter(claim_tag__name='Bodyshop')
         new_claims = queryset.exclude(claim_tag__name='Bodyshop')
 
-        print(f"bodyshop_claims count={bodyshop_claims.count()}")
-        print(f"new_claims count={new_claims.count()}")
-        print("===== END NewClaimQueueListView DEBUG =====")
+        pass
+        pass
+        pass
 
         if bodyshop_claims.exists():
             self.bodyshop = True
@@ -359,7 +355,7 @@ class NewClaimQueueListView(ListView):
         context = super().get_context_data(**kwargs)
         filter_request = self.kwargs.get('filter_request')
         dealership_id = self.request.GET.get('dealership_id')
-        dealership = get_object_or_404(Dealership, id=dealership_id)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
         user = self.request.user
 
         filtered_claims = self.get_queryset()
@@ -378,7 +374,7 @@ class NewClaimQueueListView(ListView):
 # Requires Attention Queue
 #####################################################################################
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class RaClaimQueueListView(ListView):
+class RaClaimQueueListView(DealershipAccessMixin, ListView):
     model = Claim
     template_name = 'claim/ra_claim_queue.html'
     context_object_name = 'ra_claim_queue'
@@ -391,8 +387,7 @@ class RaClaimQueueListView(ListView):
         today = date.today()
 
         try:
-            dealership = get_object_or_404(
-                Dealership,
+            dealership = get_object_or_404(accessible_dealerships(self.request.user),
                 id=dealership_id
             )
 
@@ -482,8 +477,7 @@ class RaClaimQueueListView(ListView):
         filter_request = self.kwargs.get('filter_request')
         dealership_id = self.request.GET.get('dealership_id')
 
-        dealership = get_object_or_404(
-            Dealership,
+        dealership = get_object_or_404(accessible_dealerships(self.request.user),
             id=dealership_id
         )
 
@@ -504,7 +498,7 @@ class RaClaimQueueListView(ListView):
 # Pending Queue
 #####################################################################################
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class PendingClaimQueueListView(ListView):
+class PendingClaimQueueListView(DealershipAccessMixin, ListView):
     model = Claim
     template_name = 'claim/pending_claim_queue.html'
     context_object_name = 'pending_claim_queue'
@@ -516,8 +510,7 @@ class PendingClaimQueueListView(ListView):
         today = date.today()
 
         try:
-            dealership = get_object_or_404(
-                Dealership,
+            dealership = get_object_or_404(accessible_dealerships(self.request.user),
                 id=dealership_id
             )
 
@@ -592,8 +585,7 @@ class PendingClaimQueueListView(ListView):
         filter_request = self.kwargs.get('filter_request')
         dealership_id = self.request.GET.get('dealership_id')
 
-        dealership = get_object_or_404(
-            Dealership,
+        dealership = get_object_or_404(accessible_dealerships(self.request.user),
             id=dealership_id
         )
 
@@ -614,7 +606,7 @@ class PendingClaimQueueListView(ListView):
 # Rework Queue
 #####################################################################################
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class ReworkClaimQueueListView(ListView):
+class ReworkClaimQueueListView(DealershipAccessMixin, ListView):
     model = Claim
     template_name = 'claim/rework_claim_queue.html'
     context_object_name = 'rework_claim_queue'
@@ -626,8 +618,7 @@ class ReworkClaimQueueListView(ListView):
         today = date.today()
 
         try:
-            dealership = get_object_or_404(
-                Dealership,
+            dealership = get_object_or_404(accessible_dealerships(self.request.user),
                 id=dealership_id
             )
 
@@ -702,8 +693,7 @@ class ReworkClaimQueueListView(ListView):
         filter_request = self.kwargs.get('filter_request')
         dealership_id = self.request.GET.get('dealership_id')
 
-        dealership = get_object_or_404(
-            Dealership,
+        dealership = get_object_or_404(accessible_dealerships(self.request.user),
             id=dealership_id
         )
 
@@ -739,7 +729,7 @@ class OpenRoQueueListView(ListView):
         today = date.today()
         open_status = get_object_or_404(RoStatus, name='Open')
 
-        dealership = get_object_or_404(Dealership, id=dealership_id)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
 
         # Exclude claims with lines having excluded statuses
         excluded_statuses = ['New', 'Pending', 'Requires Attention', 'Rework']
@@ -758,7 +748,7 @@ class OpenRoQueueListView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         dealership_id = self.request.GET.get('dealership_id')
-        dealership = get_object_or_404(Dealership, id=dealership_id)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
         user = self.request.user
 
         # Add additional context
@@ -774,7 +764,7 @@ class OpenRoQueueListView(ListView):
 #####################################################################################
         
 @method_decorator(in_group_required('wrs-admin'), name='dispatch')
-class ClaimLineUpdateView(UpdateView):
+class ClaimLineUpdateView(DealershipAccessMixin, UpdateView):
     model = Claim
     form_class = ClaimLineUpdateForm
     template_name = 'claim/claim_update.html'
@@ -785,7 +775,7 @@ class ClaimLineUpdateView(UpdateView):
         claim = self.object
         user = self.request.user
         dealership_id = self.kwargs.get('dealership_id')
-        dealership = get_object_or_404(Dealership, id=dealership_id)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
         line_table = LineTable.objects.filter(claim=claim, dealership_id=dealership_id)
         reconciliation = LineTable.objects.filter(claim=claim, dealership_id=dealership_id, discrepancy__isnull=False).select_related('discrepancy')
         discrepancies = [line.discrepancy for line in reconciliation if line.discrepancy is not None]
@@ -809,20 +799,9 @@ class ClaimLineUpdateView(UpdateView):
             )
             .order_by('-occurred_at')
         )
-        print(f"Audit events for claim {claim.id}: {audit_events.count()}")
+        pass
 
-        for event in audit_events:
-            print(
-                event.occurred_at,
-                event.event_type,
-                event.action,
-                event.actor,
-                event.line,
-                event.journal,
-                event.content_type,
-                event.message,
-                event.line_num,
-            )
+        pass
         #journal = (
         #    Journal.objects
         #    .filter(claim=claim)
@@ -873,7 +852,7 @@ class ClaimLineUpdateView(UpdateView):
 
        
 
-        print("Log: ", date.today().strftime('%B %d, %Y'), user, dealership, claim.repair_order)
+        pass
 
         context.update({
             'line_table': line_table,
@@ -947,7 +926,7 @@ class UpdateClaim(UpdateView):
     def get_object(self, queryset=None):
         dealership = self.kwargs['dealership']
         repair_order = self.kwargs['repair_order']
-        return get_object_or_404(Claim, dealership__name=dealership, repair_order=repair_order)
+        return get_object_or_404(claims_for_user(self.request.user), dealership__name=dealership, repair_order=repair_order)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -983,12 +962,12 @@ class UpdateClaim(UpdateView):
 @method_decorator(in_group_required('wrs-admin'), name='dispatch')
 class DeleteClaim(View):
 
-    def get(self, request, *args, **kwargs):
-        redirect_url = request.session.get('redirect_url')
+    def post(self, request, *args, **kwargs):
+        redirect_url = '/dashboard/'
         dealership = kwargs['dealership']
-        dealership = get_object_or_404(Dealership, name=dealership)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), name=dealership)
         repair_order = kwargs['repair_order']
-        claim = get_object_or_404(Claim, dealership__name=dealership, repair_order=repair_order)
+        claim = get_object_or_404(claims_for_user(self.request.user), dealership__name=dealership, repair_order=repair_order)
         
         # Attempt to delete the claim
         try:
@@ -1061,7 +1040,7 @@ class UpdateDiscrepancy(UpdateView):
     form_class = DiscrepancyForm
 
     def dispatch(self, request, *args, **kwargs):
-        self.line = get_object_or_404(LineTable, id=self.kwargs['line_id'])
+        self.line = get_object_or_404(lines_for_user(self.request.user), id=self.kwargs['line_id'])
         return super().dispatch(request, *args, **kwargs)
 
     def get_object(self, queryset=None):
@@ -1087,7 +1066,7 @@ class DeleteDiscrepancy(DeleteView):
     template_name = 'claim/confirm_delete_discrepancy.html'
 
     def dispatch(self, request, *args, **kwargs):
-        self.line = get_object_or_404(LineTable, id=self.kwargs['line_id'])
+        self.line = get_object_or_404(lines_for_user(self.request.user), id=self.kwargs['line_id'])
         self.discrepancy = get_object_or_404(
             Discrepancy,
             id=self.kwargs['discrepancy_id']
@@ -1125,7 +1104,7 @@ class DiscrepancyCreate(CreateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         line_id = self.kwargs.get('line_id')
-        line = get_object_or_404(LineTable, id=line_id)
+        line = get_object_or_404(lines_for_user(self.request.user), id=line_id)
         claim = line.claim  # Access claim via the line
         context['line_num'] = line.line_num
         context['repair_order'] = claim.repair_order
@@ -1135,7 +1114,7 @@ class DiscrepancyCreate(CreateView):
 
     def form_valid(self, form):
         line_id = self.kwargs.get('line_id')
-        line = get_object_or_404(LineTable, id=line_id)
+        line = get_object_or_404(lines_for_user(self.request.user), id=line_id)
         form.instance.line = line
         response = super().form_valid(form)
     
@@ -1146,7 +1125,7 @@ class DiscrepancyCreate(CreateView):
 
     def get_success_url(self):
         line_id = self.kwargs.get('line_id')
-        line = get_object_or_404(LineTable, id=line_id)
+        line = get_object_or_404(lines_for_user(self.request.user), id=line_id)
         claim_id = line.claim.id
         dealership_id = line.dealership.id
         return reverse('claim:claim-update', kwargs={'pk': claim_id, 'dealership_id': dealership_id})
@@ -1156,7 +1135,8 @@ class DiscrepancyCreate(CreateView):
 #####################################################################################
 
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')    
-class DealerClaimLineUpdateView(UpdateView):
+class DealerClaimLineUpdateView(DealershipAccessMixin, UpdateView):
+    http_method_names = ['get', 'head', 'options']
     model = Claim
     form_class = ClaimLineUpdateForm
     template_name = 'claim/dealer_claim_update_view.html'
@@ -1166,7 +1146,7 @@ class DealerClaimLineUpdateView(UpdateView):
         context = super().get_context_data(**kwargs)
         claim = self.object
         dealership_id = self.kwargs.get('dealership_id')
-        dealership = get_object_or_404(Dealership, id=dealership_id)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
         line_table = LineTable.objects.filter(claim=claim, dealership_id=dealership_id)
         reconciliation = LineTable.objects.filter(claim=claim, dealership_id=dealership_id, discrepancy__isnull=False).select_related('discrepancy')
         journal = Journal.objects.filter(claim=claim)
@@ -1232,7 +1212,7 @@ class DealerClaimLineUpdateView(UpdateView):
             return self.form_invalid(form, formset)
         
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class ComplianceView(TemplateView):
+class ComplianceView(DealershipAccessMixin, TemplateView):
     template_name = 'claim/compliance.html' 
     context_object_name = 'compliance'   
 
@@ -1262,6 +1242,7 @@ class ComplianceView(TemplateView):
 
 ## EVENT SYSTEMS ################################################################################################################
  
+@method_decorator(in_group_required('wrs-admin'), name='dispatch')
 class EventViewer(ListView):
     model = Event
     context_object_name = 'events'
@@ -1271,12 +1252,18 @@ class EventViewer(ListView):
 
 ## CLAIM LINE FUNCTIONS ###############################################   FUNCTIONS    ###########################################
 
+@in_group_required('dealer-admin','wrs-admin')
+@require_POST
 def upload_pdf(request):
     if request.method == 'POST' and request.FILES.get('pdf_file'):
         pdf_file = request.FILES['pdf_file']
-        claim_id = int(request.POST.get('claim_id'))
+        try:
+            validate_pdf(pdf_file)
+        except ValidationError:
+            return HttpResponseBadRequest('Upload a valid PDF of at most 10 MB.')
+        claim_id = positive_id(request.POST.get('claim_id'))
 
-        claim = get_object_or_404(Claim, id=claim_id)
+        claim = get_object_or_404(claims_for_user(request.user), id=claim_id)
 
         # Create a new PdfFile instance
         if pdf_file:
@@ -1292,7 +1279,7 @@ def upload_pdf(request):
                 )
 
         # Get the success URL
-        forwarding_url = request.META.get('HTTP_REFERER', '/default-url/')
+        forwarding_url = safe_return_url(request)
 
         # Return the success URL as JSON response
         return redirect(forwarding_url)
@@ -1300,15 +1287,17 @@ def upload_pdf(request):
     # Invalid request or missing data
     return JsonResponse({'success': False, 'error': 'Invalid request or missing data'})
 
+@in_group_required('dealer-admin','wrs-admin')
+@require_POST
 def global_comment(request):
     if request.method == 'POST':
         global_comment_text = request.POST.get('comment')
-        claim_id = int(request.POST.get('claim_id'))
+        claim_id = positive_id(request.POST.get('claim_id'))
         user_id = request.user.id
-        claim = get_object_or_404(Claim, id=claim_id)
+        claim = get_object_or_404(claims_for_user(request.user), id=claim_id)
 
         # Create a new PdfFile instance
-        if global_comment: 
+        if global_comment_text and global_comment_text.strip(): 
                 Journal.objects.create(
                     comment=global_comment_text,
                     claim=claim,
@@ -1316,7 +1305,7 @@ def global_comment(request):
                 )
 
         # Get the success URL
-        forwarding_url = request.META.get('HTTP_REFERER', '/default-url/')
+        forwarding_url = safe_return_url(request)
 
         # Return the success URL as JSON response
         return redirect(forwarding_url)
@@ -1338,11 +1327,10 @@ COMMENT_REQUIRED_STATUSES = {
 
 @require_POST
 @transaction.atomic
+@in_group_required('dealer-admin','wrs-admin')
+@require_POST
 def line_update(request):
-    forwarding_url = request.META.get(
-        'HTTP_REFERER',
-        '/default-url/'
-    )
+    forwarding_url = safe_return_url(request)
 
     COMMENT_REQUIRED_STATUSES = {
         'requires attention',
@@ -1351,8 +1339,24 @@ def line_update(request):
         'rejected',
     }
 
-    line_id = request.POST.get('line_id')
-    line = get_object_or_404(LineTable, id=line_id)
+    line_id = positive_id(request.POST.get('line_id'))
+    line = get_object_or_404(lines_for_user(request.user), id=line_id)
+
+    if not is_wrs_admin(request.user):
+        immutable = {
+            'line_num': str(line.line_num or ''),
+            'claim_type': str(line.claim_type_id or ''),
+            'start_date': line.start_date.strftime('%B %d, %Y') if line.start_date else '',
+        }
+        if any(request.POST.get(key, value) != value for key, value in immutable.items()):
+            raise PermissionDenied
+        submitted_total = request.POST.get('claim_total')
+        if submitted_total:
+            try:
+                if Decimal(submitted_total) != line.claim_total:
+                    raise PermissionDenied
+            except InvalidOperation:
+                return HttpResponseBadRequest('Invalid claim total.')
 
     updated = False
 
@@ -1363,21 +1367,21 @@ def line_update(request):
     # DEBUG
     # ---------------------------------------------------------
 
-    print('========================================')
-    print('LINE UPDATE')
-    print('line_id:', line_id)
-    print('POST:', request.POST)
-    print('DATABASE STATUS ID:', line.claim_status_id)
-    print('DATABASE STATUS:', line.claim_status.name)
-    print('SUBMITTED STATUS:', request.POST.get('claim_status'))
-    print('COMMENT:', repr(comment))
-    print('========================================')
+    pass
+    pass
+    pass
+    pass
+    pass
+    pass
+    pass
+    pass
+    pass
 
     # ---------------------------------------------------------
     # CLAIM STATUS VALIDATION
     # ---------------------------------------------------------
 
-    claim_status_id = request.POST.get('claim_status')
+    claim_status_id = request.POST.get('claim_status') or line.claim_status_id
 
     if not claim_status_id:
         messages.error(
@@ -1399,6 +1403,12 @@ def line_update(request):
         Status,
         id=new_claim_status_id
     )
+
+    if not is_wrs_admin(request.user) and new_claim_status.pk != line.claim_status_id:
+        allowed = {'rework', 'no warranty', 'not submitted', 'rejected'}
+        current = line.claim_status.name.strip().lower() if line.claim_status else ''
+        if current not in allowed | {'requires attention'} or new_claim_status.name.strip().lower() not in allowed:
+            raise PermissionDenied
 
     # Determine whether the status actually changed.
     status_changed = (
@@ -1434,12 +1444,7 @@ def line_update(request):
 
     new_line_num = request.POST.get('line_num', '').strip()
 
-    print(
-        'This is the new line number:',
-        new_line_num,
-        'VS OLD NUM:',
-        line.line_num
-    )
+    pass
 
     # Compare as strings because POST values are strings.
     if new_line_num and new_line_num != str(line.line_num):
@@ -1512,6 +1517,9 @@ def line_update(request):
             )
             return redirect(forwarding_url)
 
+        if not validated_claim_total.is_finite() or abs(validated_claim_total) >= Decimal('100000000') or validated_claim_total.as_tuple().exponent < -2:
+            return HttpResponseBadRequest('Invalid claim total.')
+
         if validated_claim_total != line.claim_total:
             line.claim_total = validated_claim_total
             updated = True
@@ -1536,7 +1544,7 @@ def line_update(request):
     # COMPLIANT
     # ---------------------------------------------------------
 
-    compliant = request.POST.get('compliant') == 'on'
+    compliant = request.POST.get('compliant') == 'on' if is_wrs_admin(request.user) else line.compliant
 
     if compliant != line.compliant:
         line.compliant = compliant
@@ -1582,14 +1590,19 @@ def line_update(request):
 
     return redirect(forwarding_url)
 
+@in_group_required('wrs-admin')
+@require_POST
 def add_line(request):
     if request.method == 'POST':
 
         dealership_name = request.POST.get('dealership')
-        dealership = get_object_or_404(Dealership, name=dealership_name)
+        dealership = get_object_or_404(accessible_dealerships(request.user), name=dealership_name)
 
-        claim_id = int(request.POST.get('claim_id'))
-        claim = get_object_or_404(Claim, id=claim_id)
+        claim_id = positive_id(request.POST.get('claim_id'))
+        claim = get_object_or_404(claims_for_user(request.user), id=claim_id)
+
+        if dealership.pk != claim.dealership_id:
+            raise Http404
 
         LineTable.objects.create(
                 claim_total=0.00,
@@ -1599,7 +1612,7 @@ def add_line(request):
 
                 )
         # Get the success URL
-        forwarding_url = request.META.get('HTTP_REFERER', '/default-url/')
+        forwarding_url = safe_return_url(request)
 
         # Return the success URL as JSON response
         return redirect(forwarding_url)
@@ -1607,47 +1620,57 @@ def add_line(request):
     return HttpResponseBadRequest('Invalid request or missing data')
 
 @require_POST
+@in_group_required('wrs-admin')
+@require_POST
 def delete_line(request, line_id):
-    line = get_object_or_404(LineTable, id=line_id)
+    line = get_object_or_404(lines_for_user(request.user), id=line_id)
 
     # Save redirect location before deleting
-    forwarding_url = request.META.get('HTTP_REFERER', '/default-url/')
+    forwarding_url = safe_return_url(request)
 
     line.delete()
 
     return redirect(forwarding_url)
 
+@in_group_required('wrs-admin')
+@require_POST
 def add_start_date(request):
-    line_id = request.POST.get('line_id')
+    line_id = positive_id(request.POST.get('line_id'))
     start_date = request.POST.get('start_date')
 
-    line = get_object_or_404(LineTable, id=line_id)
-    line.start_date = start_date
+    line = get_object_or_404(lines_for_user(request.user), id=line_id)
+    from django import forms
+    try:
+        line.start_date = forms.DateField(required=False).clean(start_date)
+    except ValidationError:
+        return HttpResponseBadRequest('Invalid completion date.')
     line.save()
 
     # Get the success URL
-    forwarding_url = request.META.get('HTTP_REFERER', '/default-url/')
+    forwarding_url = safe_return_url(request)
 
     # Return the success URL as redirect response
     return redirect(forwarding_url)
 
+@in_group_required('dealer-admin','wrs-admin')
+@require_POST
 def update_ro_status(request):
     if request.method == 'POST':
-        print("We in a POST for Status")
+        pass
         ro_status_post = request.POST.get('ro_status')
-        claim_id_post = int(request.POST.get('claim_id'))
+        claim_id_post = positive_id(request.POST.get('claim_id'))
         user_id = request.user.id
     
         ro_status = get_object_or_404(RoStatus, id=ro_status_post)
 
-        claim = get_object_or_404(Claim, id=claim_id_post)
+        claim = get_object_or_404(claims_for_user(request.user), id=claim_id_post)
         claim.ro_status = ro_status
         claim.save()
 
         update_event = event_log(claim_id_post, line=None, user=user_id, comment=f"user set the repair order status to {claim.ro_status.name} ")
 
         # Get the success URL
-        forwarding_url = request.META.get('HTTP_REFERER', '/default-url/')
+        forwarding_url = safe_return_url(request)
 
         # Return the success URL as JSON response
         return redirect(forwarding_url)
@@ -1683,17 +1706,20 @@ def get_claim_status_totals(dealership_id, start_date, end_date):
 
     return claim_status_totals
 
+@login_required
+@require_GET
 def search_repair_order(request):
     if request.method == 'GET':
         dealership_id = request.GET.get('dealership_id', '')
         repair_order = request.GET.get('repair_order', '')
 
         # Perform a case-insensitive search for repair order numbers within the specified dealership
-        claims = Claim.objects.filter(dealership_id=dealership_id, repair_order__icontains=repair_order)
+        dealership = get_dealership(request.user, dealership_id)
+        claims = claims_for_user(request.user).filter(dealership=dealership, repair_order__icontains=repair_order).order_by('repair_order')[:100]
 
         # Create a list of dictionaries containing repair order number and ID
-        repair_orders = [{'id': claim.id, 'repair_order_number': claim.repair_order} for claim in claims]
-        print(repair_orders)
+
+        pass
 
         context = {
             'repair_orders': claims,
@@ -1722,15 +1748,16 @@ def event_log(claim, line, user, comment=None):
     return event
 
 @require_GET
+@login_required
+@require_GET
 def get_compliance(request, dealership_id):
     # Get the 'Dealership' id from the URL
-    dealership = get_object_or_404(Dealership, id=dealership_id)
+    dealership = get_object_or_404(accessible_dealerships(request.user), id=dealership_id)
 
     # Count the total number of 'Paid' entries
-    total_paid = LineTable.objects.filter(claim_status__name='Paid', dealership=dealership).count()
-
-    # Count the number of 'Paid' entries with 'compliant' set to 'False'
-    non_compliant_paid = LineTable.objects.filter(claim_status__name='Paid', compliant=False, dealership=dealership).count()
+    totals = LineTable.objects.filter(claim_status__name='Paid', dealership=dealership).aggregate(total=Count('pk'), non_compliant=Count('pk', filter=Q(compliant=False)))
+    total_paid = totals['total']
+    non_compliant_paid = totals['non_compliant']
 
     # Calculate the percentage
     percentage = 0
@@ -1835,7 +1862,7 @@ def export_to_pdf(request):
     # Get the data for the report
     view = ReportsViewForm()
     dealership = request.GET.get('dealership')
-    dealership_obj = get_object_or_404(Dealership, name=dealership)
+    dealership_obj = get_object_or_404(accessible_dealerships(request.user), name=dealership)
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
     report_type = request.GET.get('report_type')
@@ -1887,7 +1914,7 @@ class ReportsView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         dealership_id = self.kwargs['dealership_id']
-        dealership = get_object_or_404(Dealership, id=dealership_id)
+        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
         context['dealership'] = dealership.name
         context['dealerships'] = Dealership.objects.all()
         user = self.request.user
@@ -1958,10 +1985,9 @@ class ReportsViewForm(View):
         if report_type == "Daily Report":
             # WE NEED TO ADD FILTER TO INCLUDE ONLY WRS ADMIN COMMENTS
             line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date__range=(start, end)).order_by('claim__repair_order')
-            print("Here are the tables lines \n")
+            pass
 
-            for line in line_tables:
-                print(f"ID: {line.id}, Name: {line.claim_id}, LineNum: {line.line_num}")
+            pass
 
             report = []
 
@@ -1973,7 +1999,7 @@ class ReportsViewForm(View):
 
             for line in line_tables:
                 repair_order = line.claim.repair_order
-                print("This is the repair order:", repair_order)
+                pass
                 claim_status_name = line.claim_status.name
 
                 # Skip records with a claim_status of 'New' or 'Rework'
@@ -2028,7 +2054,7 @@ class ReportsViewForm(View):
 
                     # This needs updating since it gets comments by a specific user ID. needs update
                     for line_id in line_ids:
-                        print("Here is the line ID:", line_id)
+                        pass
                         line_comments = Journal.objects.filter(line_id=line_id, user_id='4', created_date__range=(start, end)).values_list('comment', flat=True)
                         comments = list(line_comments)
                         comment_count = len(comments)
@@ -2076,19 +2102,19 @@ class ReportsViewForm(View):
 
         if form.is_valid():
             dealership_name = form.cleaned_data['dealership']
-            dealership = get_object_or_404(Dealership, name=dealership_name)
+            dealership = get_object_or_404(accessible_dealerships(self.request.user), name=dealership_name)
             dealership_id = dealership.id
 
             report_type = form.cleaned_data['report_type']
             start_date_str = form.cleaned_data['start']
             end_date_str = form.cleaned_data['end']
 
-            print(start_date_str)
+            pass
 
             start_date = datetime.strptime(start_date_str, '%d %b, %Y').date()
             end_date = datetime.strptime(end_date_str, '%d %b, %Y').date()
 
-            print("Reformatted Date", start_date)
+            pass
 
             report = self.generate_report(dealership_id, report_type, start_date, end_date)
         
@@ -2109,19 +2135,19 @@ class ReportsViewForm(View):
 @login_required
 def global_search(request):
     query = request.GET.get("q", "").strip()
-    print(f"GLOBAL SEARCH QUERY: [{query}]")
+    pass
     claims = Claim.objects.none()
 
     if query:
         if query.isdigit():
             claims = (
-                Claim.objects
+                claims_for_user(request.user)
                 .select_related("dealership", "ro_status")
                 .filter(repair_order=int(query))
-                .order_by("dealership__name", "-modified_date")
+                .order_by("dealership__name", "-modified_date")[:100]
             )
-            print(f"SQL QUERY: {claims.query}")
-            print(f"RESULT COUNT: {claims.count()}")
+            pass
+            pass
 
     return render(request, "claim/global_search_results.html", {
         "query": query,
@@ -2144,7 +2170,7 @@ class xUpdateClaimLine(UpdateView):
 
     def get_object(self, queryset=None):
         line_id = self.kwargs['line_id']
-        return get_object_or_404(LineTable, id=line_id)
+        return get_object_or_404(lines_for_user(self.request.user), id=line_id)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -2248,3 +2274,19 @@ class xClaimListView(ListView):
 
         return context
 
+
+
+@login_required
+@require_GET
+def download_pdf(request, pdf_id):
+    pdf = get_object_or_404(PdfFile.objects.select_related('claim'), pk=pdf_id, claim__in=claims_for_user(request.user))
+    # Existing database paths are relative to the deployment directory.
+    root = Path(settings.BASE_DIR).resolve()
+    path = (root / pdf.pdf_file.name).resolve()
+    upload_root = (root / 'static' / 'upload').resolve()
+    if not path.is_relative_to(upload_root) or not path.is_file():
+        raise Http404
+    response = FileResponse(path.open('rb'), as_attachment=True, filename=path.name, content_type='application/pdf')
+    response['Cache-Control'] = 'private, no-store'
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response

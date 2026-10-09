@@ -23,16 +23,18 @@ if not p.exists():
         'DJANGO_SECRET_KEY=' + secrets.token_hex(48),
         'DB_PASSWORD=' + secrets.token_hex(32),
         'DB_NAME=wrs_app', 'DB_USER=wrs_app', 'DB_HOST=127.0.0.1', 'DB_PORT=3306',
-        'DJANGO_ALLOWED_HOSTS=wrs-agentic,54.166.216.124,localhost,127.0.0.1',
-        'DJANGO_CSRF_TRUSTED_ORIGINS=http://wrs-agentic,http://54.166.216.124',
+        'DJANGO_ALLOWED_HOSTS=wrs.opslogix.io,wrs-agentic,54.166.216.124,localhost,127.0.0.1',
+        'DJANGO_CSRF_TRUSTED_ORIGINS=https://wrs.opslogix.io,http://wrs-agentic,http://54.166.216.124',
         'DJANGO_STATIC_ROOT=/var/lib/wrs-app/staticfiles',
         'DJANGO_EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend',
     ]) + '\n')
     p.chmod(0o600)
 else:
     text = p.read_text()
-    text = text.replace('DJANGO_ALLOWED_HOSTS=wrs-agentic,localhost,127.0.0.1', 'DJANGO_ALLOWED_HOSTS=wrs-agentic,54.166.216.124,localhost,127.0.0.1')
-    text = text.replace('DJANGO_CSRF_TRUSTED_ORIGINS=http://wrs-agentic\n', 'DJANGO_CSRF_TRUSTED_ORIGINS=http://wrs-agentic,http://54.166.216.124\n')
+    text = text.replace('DJANGO_ALLOWED_HOSTS=wrs-agentic,localhost,127.0.0.1', 'DJANGO_ALLOWED_HOSTS=wrs.opslogix.io,wrs-agentic,54.166.216.124,localhost,127.0.0.1')
+    text = text.replace('DJANGO_CSRF_TRUSTED_ORIGINS=http://wrs-agentic\n', 'DJANGO_CSRF_TRUSTED_ORIGINS=https://wrs.opslogix.io,http://wrs-agentic,http://54.166.216.124\n')
+    text = text.replace('DJANGO_ALLOWED_HOSTS=wrs-agentic,54.166.216.124,localhost,127.0.0.1', 'DJANGO_ALLOWED_HOSTS=wrs.opslogix.io,wrs-agentic,54.166.216.124,localhost,127.0.0.1')
+    text = text.replace('DJANGO_CSRF_TRUSTED_ORIGINS=http://wrs-agentic,http://54.166.216.124', 'DJANGO_CSRF_TRUSTED_ORIGINS=https://wrs.opslogix.io,http://wrs-agentic,http://54.166.216.124')
     p.write_text(text)
 PY
 systemctl enable --now mariadb

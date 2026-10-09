@@ -5,7 +5,7 @@ def user_dealerships(request):
 
     if request.user.is_authenticated:
         # Get associated dealerships
-        dealerships = Dealership.objects.filter(users=request.user)
+        dealerships = list(request.user.dealership.all())
         context['user_dealerships'] = dealerships
         # Get redirect URL from session
         redirect_url = request.session.get('redirect_url')
@@ -13,7 +13,7 @@ def user_dealerships(request):
         context['redirect_url'] = redirect_url
         #print("This is how many dealerships assigned", dealerships.count())
         # Check the number of dealerships the user is assigned to
-        if dealerships.count() > 1:
+        if len(dealerships) > 1:
             context['user_stat'] = 'multi_user'
         else:
             context['user_stat'] = 'single_user'

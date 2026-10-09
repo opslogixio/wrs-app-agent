@@ -1,11 +1,12 @@
 from django.urls import path
 from django.contrib.auth.decorators import login_required
 from django.views.generic.base import TemplateView
-from .views import ClaimFormView, ClaimListView, ClaimQueueListView, RaClaimQueueListView, PendingClaimQueueListView, ReworkClaimQueueListView, NewClaimQueueListView, ClaimDetailView, xClaimUpdateView, ClaimLineUpdateView, UpdateClaim, DeleteClaim, xUpdateClaimLine, UpdateJournal, DeleteJournal, DiscrepancyCreate, DealerClaimLineUpdateView, EventViewer, ComplianceView, UpdateDiscrepancy, DeleteDiscrepancy, upload_pdf, global_comment, line_update, add_line, delete_line, add_start_date, update_ro_status, search_repair_order, get_compliance, global_search
+from .views import download_pdf, ClaimFormView, ClaimListView, ClaimQueueListView, RaClaimQueueListView, PendingClaimQueueListView, ReworkClaimQueueListView, NewClaimQueueListView, ClaimDetailView, xClaimUpdateView, ClaimLineUpdateView, UpdateClaim, DeleteClaim, xUpdateClaimLine, UpdateJournal, DeleteJournal, DiscrepancyCreate, DealerClaimLineUpdateView, EventViewer, ComplianceView, UpdateDiscrepancy, DeleteDiscrepancy, upload_pdf, global_comment, line_update, add_line, delete_line, add_start_date, update_ro_status, search_repair_order, get_compliance, global_search
 
 app_name = 'claim'
 
 urlpatterns = [
+    path('pdf/<int:pdf_id>/', download_pdf, name='download-pdf'),
     path('claim-form/<int:dealership_id>/', login_required(ClaimFormView.as_view()), name='claim-form'),
     path('queue/<str:filter_request>', login_required(ClaimQueueListView.as_view()), name='claim-queue'),
     path('ra_queue/<str:filter_request>', login_required(RaClaimQueueListView.as_view()), name='ra-claim-queue'),

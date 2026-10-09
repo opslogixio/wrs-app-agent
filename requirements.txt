@@ -1,0 +1,6 @@
+Django>=5.2,<5.3
+django-crispy-forms>=2.3,<3
+crispy-bootstrap4>=2024.10
+mysqlclient>=2.2,<3
+xhtml2pdf>=0.2.17,<0.3
+gunicorn>=23,<24

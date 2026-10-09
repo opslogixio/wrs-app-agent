@@ -1,0 +1,20 @@
+[Unit]
+Description=WRS Django application (Gunicorn)
+After=network.target mariadb.service
+Requires=mariadb.service
+
+[Service]
+User=wrs-app
+Group=wrs-app
+WorkingDirectory=/opt/wrs-app
+EnvironmentFile=/etc/wrs-app/wrs-app.env
+ExecStart=/opt/wrs-app/.venv/bin/gunicorn core.wsgi:application --bind 127.0.0.1:8000 --workers 3 --timeout 120 --access-logfile - --error-logfile -
+Restart=on-failure
+RestartSec=5
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

@@ -10,3 +10,4 @@ venv/
 static/upload/
 media/
 .DS_Store
+staticfiles/

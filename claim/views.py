@@ -252,7 +252,7 @@ class PaginatedClaimQueue(DealershipAccessMixin, ListView):
             'user_groups': self.request.user.groups.all(),
             'bodyshop': bool(bodyshop), 'bodyshop_claims': bodyshop,
             self.section_name: other, 'tags': list(tags.values()),
-            'pagination_query': query.urlencode(),
+            'pagination_query': query.urlencode(), 'custom_pagination': True,
         })
         return context
 

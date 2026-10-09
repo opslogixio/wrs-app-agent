@@ -71,14 +71,16 @@ def local_asset(uri, relative_uri):
     name = unquote(parsed.path[len(settings.STATIC_URL):])
     if '..' in Path(name).parts or Path(name).is_absolute():
         raise ValueError('Invalid PDF asset path.')
+    # Prefer repository assets: the PDF engine confines document reads to its
+    # working directory, while collectstatic may live outside that directory.
+    found = finders.find(name)
+    if found:
+        return found
     root = Path(settings.STATIC_ROOT).resolve()
     path = (root / name).resolve()
     if path.is_relative_to(root) and path.is_file():
         return str(path)
-    found = finders.find(name)
-    if not found:
-        raise ValueError('PDF asset is missing.')
-    return found
+    raise ValueError('PDF asset is missing.')
 
 
 def render_report(job, destination):

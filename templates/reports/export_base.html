@@ -1,0 +1,10 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% block css %}{% include 'partials/css.html' %}{% endblock css %}
+{% block javascript %}
+<script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+<script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+<script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+<script src="{% static 'js/app.js' %}"></script>
+{% endblock javascript %}
+{% block footer %}{% include 'partials/footer.html' %}{% endblock footer %}

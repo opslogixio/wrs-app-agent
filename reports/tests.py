@@ -145,6 +145,8 @@ class BackgroundReportTests(TestCase):
         job.refresh_from_db()
         self.assertEqual(job.state, 'completed', job.error)
         self.assertTrue(report_path(job).read_bytes().startswith(b'%PDF-'))
+        from pypdf import PdfReader
+        self.assertTrue(any(len(page.images) for page in PdfReader(report_path(job)).pages))
         response = self.client.get(reverse('reports:report-job-download', args=[job.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(b''.join(response.streaming_content).startswith(b'%PDF-'))

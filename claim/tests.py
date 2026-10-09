@@ -261,6 +261,7 @@ class QueuePaginationTests(TestCase):
                 response = self.client.get(url, {'dealership_id': self.dealer.pk})
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.context['paginator'].count, 51)
+                self.assertNotContains(response, 'Page navigation example')
                 claims = list(response.context['object_list'])
                 self.assertEqual(len(claims), 50)
                 self.assertEqual(len({claim.pk for claim in claims}), 50)

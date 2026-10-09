@@ -92,7 +92,7 @@
     {% block javascript %}
     {% endblock %}
 
-{% if is_paginated %}
+{% if is_paginated and not custom_pagination %}
 
 <nav aria-label="Page navigation example">
   <ul class="pagination justify-content-end et">

@@ -67,6 +67,9 @@ try:
     assert download.status_code == 200, download.status_code
     content = b''.join(download.streaming_content)
     assert content.startswith(b'%PDF-'), content[:20]
+    from pypdf import PdfReader
+    from io import BytesIO
+    assert any(len(page.images) for page in PdfReader(BytesIO(content)).pages), 'PDF logo is missing'
     print(f'Systemd worker generated and authorized a {len(content)}-byte PDF; temporary records removed.')
 finally:
     if job:

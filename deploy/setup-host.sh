@@ -92,3 +92,11 @@ systemctl enable --now wrs-app wrs-report-worker nginx
 systemctl restart wrs-app wrs-report-worker
 systemctl reload nginx
 systemctl is-active mariadb wrs-app wrs-report-worker nginx
+
+python3 - <<'REPORTCHECK'
+import os, subprocess
+from pathlib import Path
+values = dict(line.split('=', 1) for line in Path('/etc/wrs-app/wrs-app.env').read_text().splitlines() if line and not line.startswith('#'))
+subprocess.run(['runuser', '-u', 'wrs-app', '--', '/opt/wrs-app/.venv/bin/python', 'deploy/check_report_worker.py'],
+    cwd='/opt/wrs-app', env={**os.environ, **values}, check=True)
+REPORTCHECK

@@ -35,6 +35,8 @@ with transaction.atomic():
     user = get_user_model().objects.create_superuser(email=email, password=password)
     group, _ = Group.objects.get_or_create(name='wrs-admin')
     user.groups.add(group)
+    from accounts.models import Dealership
+    user.dealership.set(Dealership.objects.all())
     response = client.post('/accounts/login/', {'username': email, 'password': password})
     assert response.status_code == 302, response.status_code
     assert client.get('/admin/').status_code == 200

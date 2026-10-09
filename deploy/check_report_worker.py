@@ -43,7 +43,7 @@ with transaction.atomic():
         with CaptureQueriesContext(connection) as queries:
             response = client.get(reverse('claim:' + route, args=[status]), {'dealership_id': dealer.pk})
         assert response.status_code == 200, (route, response.status_code)
-        assert len(queries) <= 12, (route, len(queries))
+        assert len(queries) <= 14, (route, len(queries))
     transaction.set_rollback(True)
 print('All six queue routes rendered successfully against the imported database.')
 

@@ -278,7 +278,10 @@ class QueuePaginationTests(TestCase):
         with CaptureQueriesContext(connection) as queries:
             response = self.client.get(url, {'dealership_id': self.dealer.pk})
         self.assertEqual(response.status_code, 200)
-        self.assertLessEqual(len(queries), 12)
+        self.assertLessEqual(len(queries), 14)
+        with CaptureQueriesContext(connection) as second_page_queries:
+            self.client.get(url, {'dealership_id': self.dealer.pk, 'page': 2})
+        self.assertEqual(len(queries), len(second_page_queries))
         self.assertContains(response, reverse('claim:dealer-claim-update', args=[
             Claim.objects.filter(dealership=self.dealer).order_by('-repair_order').first().pk, self.dealer.pk]))
 

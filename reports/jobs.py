@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.staticfiles import finders
 from django.core.exceptions import PermissionDenied
 from django.db import connection, transaction
@@ -25,7 +26,7 @@ LEASE = timedelta(minutes=30)
 def enqueue_report(user, dealership, report_type, start_date=None, end_date=None):
     # Serialize submissions per user so simultaneous clicks cannot bypass the limit.
     with transaction.atomic():
-        type(user).objects.select_for_update().get(pk=user.pk)
+        get_user_model().objects.select_for_update().get(pk=user.pk)
         active = ReportJob.objects.filter(requested_by=user, state__in=['queued', 'running'])
         duplicate = active.filter(dealership=dealership, report_type=report_type, start_date=start_date, end_date=end_date).first()
         if duplicate:

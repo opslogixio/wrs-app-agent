@@ -170,7 +170,7 @@ class BackgroundReportTests(TestCase):
         self.client.force_login(self.other_user)
         self.assertEqual(self.client.get(reverse('reports:report-job', args=[job.pk])).status_code, 404)
         self.assertEqual(self.client.get(reverse('reports:report-job-download', args=[job.pk])).status_code, 404)
-        self.assertNotContains(self.client.get(reverse('reports:report-jobs')), self.dealer.name)
+        self.assertNotContains(self.client.get(reverse('reports:report-jobs')), str(job.pk))
         self.client.force_login(self.user)
         self.user.dealership.clear()
         self.assertEqual(self.client.get(reverse('reports:report-job', args=[job.pk])).status_code, 404)

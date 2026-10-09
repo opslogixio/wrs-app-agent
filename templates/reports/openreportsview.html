@@ -1,5 +1,5 @@
 {% extends 'partials/base.html' %}
-{% load static %}
+{% load static humanize %}
 {% static "" as baseUrl %}
 
 {% block css %}
@@ -29,7 +29,7 @@
                         <div class="card-body">
                           <h4>Claims that are in status "Open"</h4>
                           <div class="table-responsive">
-                            <script src="{% static 'js/table-sort.js' %}"></script>
+
                             <div class="float-end me-5">
                               <button id="closeAllBtn" onclick="location.href='#'" type="submit" class="btn btn-outline-primary w-md me-2">Close All</button>
                               <input type="checkbox" id="selectAll" />
@@ -41,15 +41,17 @@
                                 <tr>
                                   <th class = "order-by-desc">Repair Order</th>
                                   <th>RO Status</th>
-                                  <th>Created Date</th>
+                                  <th class="data-sort">Created Date</th>
+                                  <th class="data-sort">Total Dollars</th>
                                   <th>Actions</th>
+                                  <th>Select</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {% for claim in open_claims %}
                                   <tr data-claim-id="{{ claim.id }}">
                                     <td>
-                                      <a href="{% if 'wrs-admin' in user_groups.first.name %}{% url 'claim:claim-update' pk=claim.id dealership_id=dealership_id %}
+                                      <a href="{% if is_wrs_admin %}{% url 'claim:claim-update' pk=claim.id dealership_id=dealership_id %}
                                       {% else %}{% url 'claim:dealer-claim-update' pk=claim.id dealership_id=dealership_id %}{% endif %}">
                                           {{ claim.repair_order }}
                                       </a>
@@ -59,7 +61,8 @@
                                         {{ claim.ro_status}}
                                     </td>
                                   
-                                    <td> {{ claim.created_date|date:'Y-m-d H:i:s T' }} </td>
+                                    <td data-sort="{{ claim.created_date|date:'U' }}">{{ claim.created_date|date:'Y-m-d H:i:s T' }}</td>
+                                    <td data-sort="{{ claim.repair_order_total }}">${{ claim.repair_order_total|floatformat:2|intcomma }}</td>
                                     <td><button type="submit" class="closeRoBtn btn btn-outline-primary w-md" data-claim-id="{{ claim.id }}">Close RO</button></td>
                                     <td><input type="checkbox" class="rowCheckbox"/></td>
                                   </tr>

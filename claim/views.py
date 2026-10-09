@@ -70,10 +70,14 @@ class ClaimFormView(DealershipAccessMixin, View):
             'journal_form': journal_form,
             'pdffile_form': pdffile_form,
             'dealerships': dealerships,
-            'tags': tags
+            'tags': tags,
+            'adding_multiple': request.GET.get('add_another') == '1',
         })
 
     def post(self, request, dealership_id):
+        action = request.POST.get('action', 'submit')
+        if action not in {'submit', 'add_another'}:
+            return HttpResponseBadRequest('Invalid submit action.')
         claim_form = self.claim_form_class(request.POST)
         claim_form.fields['dealership'].queryset = accessible_dealerships(request.user).filter(pk=dealership_id)
         journal_form = self.journal_form_class(request.POST)
@@ -140,8 +144,11 @@ class ClaimFormView(DealershipAccessMixin, View):
                     claim=claim
                 )
 
-            redirect_url = reverse('claim:claim-form', args=[dealership_id])
-            return redirect(redirect_url)
+            messages.success(request, f'Claim for repair order {claim.repair_order} was created.')
+            if action == 'add_another':
+                return redirect(reverse('claim:claim-form', args=[dealership_id]) + '?add_another=1')
+            route = 'claim-update' if is_wrs_admin(user) else 'dealer-claim-update'
+            return redirect(reverse('claim:' + route, args=[claim.pk, dealership_id]))
 
         else:
 
@@ -152,7 +159,8 @@ class ClaimFormView(DealershipAccessMixin, View):
                 'journal_form': journal_form,
                 'pdffile_form': pdffile_form,
                 'dealerships': dealerships,
-                'tags': tags
+                'tags': tags,
+                'adding_multiple': action == 'add_another' or request.GET.get('add_another') == '1',
             })
 
         #dealerships = Dealership.objects.filter(users=user)
@@ -346,6 +354,19 @@ class OpenRoQueueListView(ListView):
 #####################################################################################
 # FULL CLAIM VIEW
 #####################################################################################
+
+DEALER_RETURN_STATUSES = {'rejected', 'no warranty', 'not submitted'}
+
+
+def dealer_status_choices(current):
+    if current == 'requires attention':
+        return {'rework', 'not submitted'}
+    if current in DEALER_RETURN_STATUSES:
+        return {current, 'rework'}
+    if current == 'rework':
+        return {'rework', 'no warranty', 'not submitted', 'rejected'}
+    return set()
+
 
 COMPLETION_DATE_REQUIRED_STATUSES = {'pending', 'requires attention'}
 
@@ -782,6 +803,20 @@ class DealerClaimLineUpdateView(DealershipAccessMixin, UpdateView):
         dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
         line_table = line_edit_values(self.request, claim,
             LineTable.objects.filter(claim=claim, dealership_id=dealership_id))
+        statuses = list(Status.objects.all())
+        for line in line_table:
+            current = line.claim_status.name.strip().lower() if line.claim_status else ''
+            allowed = dealer_status_choices(current)
+            line.dealer_status_options = [
+                {'id': str(status.pk), 'name': status.name,
+                 'requires_comment': current in DEALER_RETURN_STATUSES and status.name.strip().lower() == 'rework'}
+                for status in statuses if status.name.strip().lower() in allowed
+            ]
+            selected = line.edit_values['claim_status']
+            if selected not in {option['id'] for option in line.dealer_status_options}:
+                selected = next((option['id'] for option in line.dealer_status_options
+                    if option['name'].strip().lower() == 'rework'), '')
+            line.dealer_status_selected = selected
         reconciliation = LineTable.objects.filter(claim=claim, dealership_id=dealership_id, discrepancy__isnull=False).select_related('discrepancy')
         journal = Journal.objects.filter(claim=claim)
         pdf_file = PdfFile.objects.filter(claim=claim)
@@ -1014,9 +1049,8 @@ def line_update(request):
     )
 
     if not is_wrs_admin(request.user) and new_claim_status.pk != line.claim_status_id:
-        allowed = {'rework', 'no warranty', 'not submitted', 'rejected'}
         current = line.claim_status.name.strip().lower() if line.claim_status else ''
-        if current not in allowed | {'requires attention'} or new_claim_status.name.strip().lower() not in allowed:
+        if new_claim_status.name.strip().lower() not in dealer_status_choices(current):
             raise PermissionDenied
 
     # Determine whether the status actually changed.
@@ -1034,7 +1068,9 @@ def line_update(request):
     # 3. No comment was supplied.
     if (
         status_changed
-        and new_status_name in COMMENT_REQUIRED_STATUSES
+        and (new_status_name in COMMENT_REQUIRED_STATUSES or (
+            not is_wrs_admin(request.user) and new_status_name == 'rework'
+            and line.claim_status and line.claim_status.name.strip().lower() in DEALER_RETURN_STATUSES))
         and not comment
     ):
         return line_update_error(request, line,
@@ -1061,7 +1097,7 @@ def line_update(request):
 
     if new_start_date:
         try:
-            formatted_start_date = clean_datetime(new_start_date)
+            formatted_start_date = clean_datetime(new_start_date) if is_wrs_admin(request.user) else line.start_date
 
         except ValidationError:
             return line_update_error(request, line, 'Enter a valid completion date and time.')

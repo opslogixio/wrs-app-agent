@@ -1,5 +1,6 @@
+from decimal import Decimal
 from core.dates import as_date, as_datetime
-from django.db.models.functions import TruncDate
+from django.db.models.functions import TruncDate, Coalesce
 from pathlib import Path
 from django.db import transaction
 from django.http import FileResponse, Http404
@@ -10,7 +11,7 @@ from decorators.access import (in_group_required, accessible_dealerships, get_de
 from django.shortcuts import render, get_object_or_404, redirect
 from datetime import date, datetime, timedelta
 from django.http import HttpResponseRedirect, HttpResponse, HttpResponseBadRequest, JsonResponse, HttpResponseNotAllowed
-from django.db.models import Prefetch, OuterRef, Subquery
+from django.db.models import Prefetch, OuterRef, Subquery, Sum, Q, F, DecimalField, Value
 from django.views.generic import View, TemplateView
 from django.template.loader import get_template, render_to_string
 from django.utils.decorators import method_decorator
@@ -615,10 +616,13 @@ class OpenClaimsReportView(DealershipAccessMixin, View):
                 id__in=Claim.objects.filter(
                     linetable__claim_status__name__in=excluded_statuses
                 ).values('id')  # Get all claims that have lines with excluded statuses
-            )
+            ).annotate(repair_order_total=Coalesce(
+                Sum('linetable__claim_total', filter=Q(linetable__dealership_id=F('dealership_id'))),
+                Value(Decimal('0.00')), output_field=DecimalField(max_digits=20, decimal_places=2)))
         
         # Pass the open claims and report type to the template context
         context['open_claims'] = open_claims
+        context['is_wrs_admin'] = is_wrs_admin(self.request.user)
         context['report_type'] = "Open Claims"
         context['dealership'] = dealership
         context['dealership_id'] = dealership_id

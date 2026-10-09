@@ -212,31 +212,14 @@
                     <input type="hidden" name="claim_type" value="{{ line.claim_type.id }}"> 
                   </td>
                   <td class="col-lg-2">
-                    {% if line.claim_status.id == 2 or line.claim_status.id == 3 or line.claim_status.id == 6 or line.claim_status.id == 7 or line.claim_status.id == 8 %}
-
-                      <select
-                          id="claim_status.{{ line.id }}"
-                          name="claim_status"
-                          class="form-select claim-status"
-                          data-original-status="{{ line.claim_status.id }}"
-                      >
-
-                          <option value="8" {% if line.edit_values.claim_status == "8" %}selected{% endif %}>
-                              Rework
-                          </option>
-
-                          <option value="2" {% if line.edit_values.claim_status == "2" %}selected{% endif %}>
-                              No Warranty
-                          </option>
-
-                          <option value="3" {% if line.edit_values.claim_status == "3" %}selected{% endif %}>
-                              Not Submitted
-                          </option>
-
-                          <option value="6" {% if line.edit_values.claim_status == "6" %}selected{% endif %}>
-                              Rejected
-                          </option>
-
+                    {% if line.dealer_status_options %}
+                      <select id="claim_status.{{ line.id }}" name="claim_status"
+                          class="form-select claim-status" data-original-status="{{ line.claim_status.id }}">
+                        {% for option in line.dealer_status_options %}
+                          <option value="{{ option.id }}" data-status-name="{{ option.name }}"
+                              data-comment-required="{{ option.requires_comment|yesno:'true,false' }}"
+                              {% if line.dealer_status_selected == option.id %}selected{% endif %}>{{ option.name }}</option>
+                        {% endfor %}
                       </select>
 
                     {% else %}

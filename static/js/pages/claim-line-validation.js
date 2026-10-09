@@ -16,7 +16,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 completion.setAttribute('aria-required', String(completion.required));
             }
             if (comment && status) {
-                comment.required = status.value !== status.dataset.originalStatus && commentStatuses.includes(name);
+                comment.required = status.value !== status.dataset.originalStatus &&
+                    (commentStatuses.includes(name) || option.dataset.commentRequired === 'true');
                 comment.setCustomValidity(comment.required && !comment.value.trim()
                     ? 'A comment is required for this status change.' : '');
                 const notice = form.querySelector('.comment-requirement');

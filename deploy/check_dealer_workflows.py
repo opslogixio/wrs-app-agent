@@ -44,8 +44,8 @@ try:
         user.groups.add(Group.objects.get(name='dealer-admin'))
         user.dealership.add(dealer)
         client.force_login(user)
-        tag = Tag.objects.get(name='Warranty')
-        kind = ClaimType.objects.get(name='Warranty')
+        tag = Tag.objects.filter(name__in=ClaimType.objects.values('name')).order_by('pk').first()
+        assert tag is not None, 'A claim tag with a matching claim type is required.'
         statuses = {status.name: status for status in Status.objects.all()}
         number = max(1, Claim.objects.order_by('-repair_order').values_list('repair_order', flat=True).first() or 0) + 1
         create_url = reverse('claim:claim-form', args=[dealer.pk])

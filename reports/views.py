@@ -8,7 +8,7 @@ from decorators.access import (in_group_required, accessible_dealerships, get_de
 from django.shortcuts import render, get_object_or_404, redirect
 from datetime import date, datetime, timedelta
 from django.http import HttpResponseRedirect, HttpResponse, HttpResponseBadRequest, JsonResponse, HttpResponseNotAllowed
-from django.db.models import Prefetch
+from django.db.models import Prefetch, OuterRef, Subquery
 from django.views.generic import View, TemplateView
 from django.template.loader import get_template, render_to_string
 from django.utils.decorators import method_decorator
@@ -193,8 +193,14 @@ class ReportService:
     
     @staticmethod
     def generate_archived_report(dealership_id, start_date):
-        # Query HistoricalClaim by created_date (>= start_date)
-        claims = HistoricalClaim.objects.filter(dealership_id=dealership_id, created_date__date=start_date).select_related('ro_status').prefetch_related(
+        if isinstance(start_date, str):
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        start = datetime.combine(start_date, datetime.min.time())
+        if settings.USE_TZ:
+            start = timezone.make_aware(start)
+        end = start + timedelta(days=1)
+        # A UTC-converted range uses the index and needs no DB timezone tables.
+        claims = HistoricalClaim.objects.filter(dealership_id=dealership_id, created_date__gte=start, created_date__lt=end).select_related('ro_status').prefetch_related(
             Prefetch(
                 'historicallinetable_set', 
                 queryset=HistoricalLineTable.objects.select_related('claim_status').prefetch_related(
@@ -242,10 +248,10 @@ class ReportService:
         # Query claims that have discrepancies within the date range
         # Filter LineTable objects by 'modified_date' within the date range and related to the given dealership
         discrepancy_lines = LineTable.objects.filter(
-            claim__dealership=dealership_id,  # Ensure the claim belongs to the dealership
+            dealership_id=dealership_id, claim__dealership=dealership_id,  # Ensure the claim belongs to the dealership
             modified_date__range=(start_date, end_date),  # Filter lines within the date range
             discrepancy__isnull=False  # Ensure there is a discrepancy
-        ).select_related('claim', 'discrepancy')
+        ).select_related('claim', 'claim__ro_status', 'claim_status', 'claim_type', 'discrepancy')
 
         for line in discrepancy_lines:
             if line.discrepancy:
@@ -268,57 +274,29 @@ class ReportService:
     
     @staticmethod
     def generate_ra_report(dealership_id, filter_request):
-        ninety_days_ago = date.today() - timedelta(days=90)
-        today = date.today()
-
-        try:
-            dealership = get_object_or_404(Dealership, id=dealership_id)
-
-            # Filter logic based on 'filter_request'
-            if filter_request == 'Aging':
-                queryset = Claim.objects.filter(
-                    linetable__claim_status__name='Requires Attention',
-                    linetable__dealership_id=dealership_id, dealership=dealership,
-                    linetable__start_date__lte=ninety_days_ago
-                ).distinct().select_related('ro_status').prefetch_related('claim_tag',
-                    Prefetch('linetable_set', queryset=LineTable.objects.filter(dealership_id=dealership_id).select_related('claim_status', 'claim_type').prefetch_related(Prefetch('journal_set', queryset=Journal.objects.order_by('-created_date', '-pk'))))
-                )
-            else:
-                claim_status_obj = Status.objects.get(name=filter_request)
-                queryset = Claim.objects.filter(
-                    linetable__claim_status=claim_status_obj,
-                    linetable__dealership_id=dealership_id, dealership=dealership
-                ).distinct().select_related('ro_status').prefetch_related('claim_tag',
-                    Prefetch('linetable_set', queryset=LineTable.objects.filter(dealership_id=dealership_id).select_related('claim_status', 'claim_type').prefetch_related(Prefetch('journal_set', queryset=Journal.objects.order_by('-created_date', '-pk'))))
-                )
-
-        except (Status.DoesNotExist, Dealership.DoesNotExist):
-            queryset = Claim.objects.none()
-
-        claim_data = []
-        for claim in queryset:
-            claim_info = {'claim': claim, 'lines': []}
-            for line in claim.linetable_set.all():
-                claim_age = (today - line.start_date).days if line.start_date else None
-
-                # Fetch associated comments from Journal
-                #comments = list(line.journal_set.values_list('comment', flat=True))
-                comments_list = list(line.journal_set.all())
-                latest_comment = comments_list[0] if comments_list else None
-                comments = latest_comment.comment if latest_comment else "No Comment"
-
-                claim_info['lines'].append({
-                    'line': line,
-                    'claim_age': claim_age,
-                    'comments': comments  # Add comments to the line info
-                })
-            claim_data.append(claim_info)
-
-        # Separate bodyshop and non-bodyshop claims
-        bodyshop_claims = [data for data in claim_data if any(tag.name == 'Bodyshop' for tag in data['claim'].claim_tag.all())]
-        ra_claims = [data for data in claim_data if not any(tag.name == 'Bodyshop' for tag in data['claim'].claim_tag.all())]
-
-        return {'bodyshop_claims': bodyshop_claims, 'ra_claims': ra_claims}
+        today = timezone.localdate()
+        filters = {'linetable__claim_status__name': filter_request}
+        if filter_request == 'Aging':
+            filters.update(linetable__claim_status__name='Requires Attention',
+                linetable__start_date__lte=today - timedelta(days=90))
+        latest_comment = (Journal.objects.filter(line_id=OuterRef('pk'))
+            .order_by('-created_date', '-pk').values('comment')[:1])
+        lines = (LineTable.objects.filter(dealership_id=dealership_id)
+            .select_related('claim_status', 'claim_type').annotate(latest_comment=Subquery(latest_comment)))
+        claims = (Claim.objects.filter(dealership_id=dealership_id,
+            linetable__dealership_id=dealership_id, **filters).distinct()
+            .select_related('ro_status').prefetch_related('claim_tag', Prefetch('linetable_set', queryset=lines))
+            .order_by('repair_order', 'pk'))
+        result = {'bodyshop_claims': [], 'ra_claims': []}
+        for claim in claims:
+            item = {'claim': claim, 'lines': [
+                {'line': line, 'claim_age': (today - line.start_date).days if line.start_date else None,
+                    'comments': line.latest_comment or 'No Comment'}
+                for line in claim.linetable_set.all()
+            ]}
+            key = 'bodyshop_claims' if any(tag.name == 'Bodyshop' for tag in claim.claim_tag.all()) else 'ra_claims'
+            result[key].append(item)
+        return result
 
 
 

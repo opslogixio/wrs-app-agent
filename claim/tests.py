@@ -122,7 +122,7 @@ class SecurityBaselineTests(TestCase):
     def test_viewer_cannot_mutate_or_read_audit_log(self):
         self.client.force_login(self.viewer)
         self.assertEqual(self.client.post(reverse('claim:ro-status'), {'claim_id': self.claim.pk, 'ro_status': self.closed.pk}).status_code, 403)
-        self.assertEqual(self.client.get('/auditlog/').status_code, 403)
+        self.assertEqual(self.client.get(reverse('auditlog:event_list')).status_code, 403)
 
     def test_pdf_signature_and_size_are_validated(self):
         for filename, content in [('bad.pdf', b'<script>unsafe</script>'), ('bad.html', b'%PDF-1.4'), ('large.pdf', b'%PDF-' + b'x' * (10 * 1024 * 1024))]:

@@ -54,6 +54,7 @@ class ChartPerformanceTests(TestCase):
     def test_context_processor_evaluates_membership_once(self):
         request = RequestFactory().get('/')
         request.user = self.user
+        request.session = {}
         with self.assertNumQueries(1):
             result = user_dealerships(request)
             self.assertEqual(list(result['user_dealerships']), [self.dealer])

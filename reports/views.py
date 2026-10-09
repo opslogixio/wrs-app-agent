@@ -34,8 +34,6 @@ def update_daily_report_database(dealership_id, start):
     #user = CustomUser.objects.filter(id__in=[2, 14])
     dealership = Dealership.objects.get(id=dealership_id)
 
-    pass
-    pass
 
     # Fetch LineTable records
     line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date=start).order_by('claim__repair_order')
@@ -102,8 +100,6 @@ def update_daily_report_database(dealership_id, start):
 
         for line_data in lines:
             # Create or update HistoricalLineTable entry
-            pass
-            pass
 
             historical_line, line_created = HistoricalLineTable.objects.update_or_create(
                 claim=historical_claim,
@@ -119,7 +115,6 @@ def update_daily_report_database(dealership_id, start):
                     'created_date': timezone.now() - timedelta(days=1)
                 }
             )
-            pass
             # Fetch comments specifically associated with this line
             line_journals = Journal.objects.filter(
                 line_id=line_data['line_table_id'],
@@ -129,7 +124,6 @@ def update_daily_report_database(dealership_id, start):
             #).values_list('comment', flat=True)
 
             #print(f"Comments for Line {line_data['line_num']}: {list(line_comments)}")
-            pass
 
             # Create HistoricalJournal entries for this line
             for journal in line_journals:
@@ -152,80 +146,50 @@ def update_daily_report_database(dealership_id, start):
 class ReportService:
     @staticmethod
     def generate_daily_report(dealership_id, start_date):
-        line_tables = LineTable.objects.filter(
-            dealership_id=dealership_id, 
-            modified_date=start_date
-        ).order_by('claim__repair_order')
-
+        lines = list(ReportService.daily_lines(start_date).filter(
+            dealership_id=dealership_id, claim__dealership_id=dealership_id,
+        ))
+        grouped = {}
+        for line in lines:
+            grouped.setdefault(line.claim_id, []).append(line)
         report = []
-        for line in line_tables:
-            repair_order = line.claim.repair_order
-            claim_status_name = line.claim_status.name
-
-            if claim_status_name in ('New', 'Rework'):
+        fields = {
+            'Paid': 'paid_claim_total',
+            'Requires Attention': 'requires_attention_claim_total',
+            'Pending': 'pending_claim_total',
+            'Rejected': 'rejected_claim_total',
+            'Not Submitted': 'not_submitted_claim_total',
+        }
+        for claim_id, claim_lines in grouped.items():
+            if not any(line.claim_status and line.claim_status.name not in {'New', 'Rework'} for line in claim_lines):
                 continue
-
-            existing_item = next((item for item in report if item['repair_order'] == repair_order), None)
-
-            if existing_item:
-                if claim_status_name == 'Paid':
-                    existing_item['paid_claim_total'] += line.claim_total
-                elif claim_status_name == 'Requires Attention':
-                    existing_item['requires_attention_claim_total'] += line.claim_total
-                elif claim_status_name == 'Pending':
-                    existing_item['pending_claim_total'] += line.claim_total
-                elif claim_status_name == 'Rejected':
-                    existing_item['rejected_claim_total'] += line.claim_total
-                elif claim_status_name == 'Not Submitted':
-                    existing_item['not_submitted_claim_total'] += line.claim_total
-            else:
-                report_item = {
-                    'repair_order': repair_order,
-                    'paid_claim_total': 0,
-                    'requires_attention_claim_total': 0,
-                    'pending_claim_total': 0,
-                    'rejected_claim_total': 0,
-                    'not_submitted_claim_total': 0,
-                    'line_data': ReportService.get_line_data(repair_order, start_date)
-                }
-
-                if claim_status_name == 'Paid':
-                    report_item['paid_claim_total'] += line.claim_total
-                elif claim_status_name == 'Requires Attention':
-                    report_item['requires_attention_claim_total'] += line.claim_total
-                elif claim_status_name == 'Pending':
-                    report_item['pending_claim_total'] += line.claim_total
-                elif claim_status_name == 'Rejected':
-                    report_item['rejected_claim_total'] += line.claim_total
-                elif claim_status_name == 'Not Submitted':
-                    report_item['not_submitted_claim_total'] += line.claim_total
-
-                report.append(report_item)
-
+            item = {field: 0 for field in fields.values()}
+            item['repair_order'] = claim_lines[0].claim.repair_order
+            item['line_data'] = ReportService.get_line_data(claim_id, start_date, lines=claim_lines)
+            for line in claim_lines:
+                field = fields.get(line.claim_status.name if line.claim_status else '')
+                if field:
+                    item[field] += line.claim_total or 0
+            report.append(item)
         return report
 
     @staticmethod
-    def get_line_data(repair_order, start_date):
-        lines = LineTable.objects.filter(
-            claim__repair_order=repair_order,
-            modified_date=start_date
-        ).distinct()
+    def daily_lines(start_date):
+        comments = Journal.objects.filter(user_id__in=[2, 14], created_date=start_date).order_by('created_date', 'pk')
+        return (LineTable.objects.filter(modified_date=start_date)
+            .select_related('claim', 'claim__ro_status', 'claim_status', 'claim_type', 'discrepancy')
+            .prefetch_related(Prefetch('journal_set', queryset=comments, to_attr='report_comments'))
+            .order_by('claim__repair_order', 'claim_id', 'id'))
 
-        line_data = []
+    @staticmethod
+    def get_line_data(claim_id, start_date, lines=None):
+        if lines is None:
+            lines = ReportService.daily_lines(start_date).filter(claim_id=claim_id)
+        result = []
         for line in lines:
-            line_comments = Journal.objects.filter(
-                line_id=line.id,
-                user_id__in=[2, 14],
-                created_date=start_date
-            ).values_list('comment', flat=True)
-
-            line_data.append({
-                'line': line,
-                'comments': list(line_comments),
-                'comment_count': len(line_comments)
-            })
-
-        return line_data
+            comments = [journal.comment for journal in line.report_comments]
+            result.append({'line': line, 'comments': comments, 'comment_count': len(comments)})
+        return result
     
     @staticmethod
     def generate_archived_report(dealership_id, start_date):
@@ -239,8 +203,6 @@ class ReportService:
                 to_attr='lines'
             )
         )
-        pass
-        pass
         #print("This is a historical claim", claims)
 
         # Create a dictionary to store results
@@ -248,7 +210,6 @@ class ReportService:
         
         # Loop through each claim (repair order)
         for claim in claims:
-            pass
             claim_data = {
                 'repair_order': claim.repair_order,
                 'ro_status': claim.ro_status.name,
@@ -257,7 +218,6 @@ class ReportService:
             
             # Loop through associated lines (HistoricalLineTable)
             for line in claim.lines:
-                pass
                 line_data = {
                     'line_num': line.line_num,
                     'claim_total': line.claim_total,
@@ -279,7 +239,6 @@ class ReportService:
     
     @staticmethod
     def generate_discrepancy_report(dealership_id, start_date, end_date):
-        pass
         # Query claims that have discrepancies within the date range
         # Filter LineTable objects by 'modified_date' within the date range and related to the given dealership
         discrepancy_lines = LineTable.objects.filter(
@@ -346,7 +305,6 @@ class ReportService:
                 #comments = list(line.journal_set.values_list('comment', flat=True))
                 latest_comment = line.journal_set.order_by('-created_date').first()
                 comments = latest_comment.comment if latest_comment else "No Comment"
-                pass
 
                 claim_info['lines'].append({
                     'line': line,
@@ -412,7 +370,6 @@ def export_to_pdf(request):
                 raise ValueError
     except (TypeError, ValueError):
         return HttpResponseBadRequest('Invalid report date range.')
-    pass
 
     if report_type == "Daily Report":
         start_date = datetime.strptime(start_date_request, '%Y-%m-%d').date()
@@ -530,9 +487,6 @@ def get_repair_orders_by_date(dealership_id, start_date): # THIS IS NO LONGER US
             to_attr='lines'
         )
     )
-    pass
-    pass
-    pass
 
     # Create a dictionary to store results
     result = []
@@ -692,11 +646,9 @@ class ArchiveDailyReportsView(View):
                 Path(settings.REPORT_ROOT) / relative_path
             )
             #start_date = datetime.strptime(start, '%d %b, %Y').date()
-            pass
             #start_date = datetime.strptime(start, '%Y-%m-%d').date()
             #report = get_repair_orders_by_date(dealership_id, start_date)
             report = ReportService.generate_archived_report(dealership.id, start_date)
-            pass
             if not report:
                 context = { 
                     'message': "There is no report data for this date",
@@ -787,7 +739,6 @@ class DiscrepancyReportView(View):
     #    return total
     
     def post(self, request):
-        pass
         form = self.form_class(request.POST)
         if form.is_valid():
             # Process the data in form.cleaned_data
@@ -798,7 +749,6 @@ class DiscrepancyReportView(View):
             # Get the start and end date from the form
             start_date = form.cleaned_data['start_date']
             end_date = form.cleaned_data['end_date']
-            pass
 
             report = ReportService.generate_discrepancy_report(dealership.id, start_date, end_date)
 
@@ -835,7 +785,6 @@ class DiscrepancyReportView(View):
 
             return render(request, self.template_name, context)
         else:
-            pass
             return HttpResponse("Invalid form data")
             
 

@@ -8,7 +8,7 @@ from decorators.access import (in_group_required, accessible_dealerships, get_de
 from django.shortcuts import render, redirect, get_object_or_404
 from django.forms.models import inlineformset_factory
 from django.forms import modelformset_factory
-from django.utils.decorators import method_decorator  
+from django.utils.decorators import method_decorator
 from django.urls import reverse_lazy, reverse
 from decimal import Decimal, InvalidOperation
 from django.core.exceptions import ValidationError
@@ -48,7 +48,7 @@ def is_superuser(user):
 
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
 #@method_decorator(user_passes_test(is_superuser) or in_group_required('Dealer Admin'), name='dispatch')
-class ClaimFormView(DealershipAccessMixin, View): 
+class ClaimFormView(DealershipAccessMixin, View):
     claim_form_class = ClaimForm
     journal_form_class = JournalForm
     pdffile_form_class = PdfFileForm
@@ -78,38 +78,33 @@ class ClaimFormView(DealershipAccessMixin, View):
         user = request.user
 
         if claim_form.is_valid() and journal_form.is_valid() and pdffile_form.is_valid():
-            pass
             # Create a new Claim
             claim = claim_form.save(commit=False)
             dealership = claim_form.cleaned_data['dealership'].id
             claim.dealership_id = dealership
-            
+
 
             # Update the claim_tag in the Claim
             #claim.claim_tag = claim_form.cleaned_data['claim_tag']
-            claim.ro_status_id = 1 # this has not been tested yet. 
+            claim.ro_status_id = 1 # this has not been tested yet.
             claim.save()
 
             claim.claim_tag.set(claim_form.cleaned_data['claim_tag'])
 
             # Get the list of tags from the form cleaned_data
             tag_list = claim_form.cleaned_data['claim_tag']
-            pass
             # Find the tag with the highest 'id' from the list
             if tag_list:
                 highest_id_tag = max(tag_list, key=lambda tag: tag.id)
-                pass
                 # Pontential use if tags need to be None:
                 # highest_id_tag = max(tag_list, default=None, key=lambda tag: tag.id) if tag_list else None
                 initial_claim_type = highest_id_tag  # Set 'initial_type' to the tag with the highest 'id'
             else:
                 initial_claim_type = None
 
-            if initial_claim_type.name == 'Bodyshop':             
+            if initial_claim_type.name == 'Bodyshop':
              initial_claim_type = get_object_or_404(ClaimType, name='Repair')
-            pass
             claim_type_init = get_object_or_404(ClaimType, name=initial_claim_type.name)
-            pass
             # Create a new Journal entry associated with the Claim
             journal = journal_form.save(commit=False)
             journal_comment = journal_form.cleaned_data['comment']
@@ -143,7 +138,7 @@ class ClaimFormView(DealershipAccessMixin, View):
 
             redirect_url = reverse('claim:claim-form', args=[dealership_id])
             return redirect(redirect_url)
-        
+
         else:
 
             dealerships = Dealership.objects.filter(id=dealership_id)
@@ -155,7 +150,7 @@ class ClaimFormView(DealershipAccessMixin, View):
                 'dealerships': dealerships,
                 'tags': tags
             })
-        
+
         #dealerships = Dealership.objects.filter(users=user)
         #tags = Tag.objects.all()
         #return render(request, self.template_name, {
@@ -206,7 +201,7 @@ class ClaimQueueListView(DealershipAccessMixin, ListView):
     template_name = 'claim/claim_queue.html'
     context_object_name = 'claim_queue'
     bodyshop = False
-    
+
 
     def get_queryset(self):
         # Get the filter request from the URL parameter
@@ -249,7 +244,7 @@ class ClaimQueueListView(DealershipAccessMixin, ListView):
             self.bodyshop = True
 
         return {'bodyshop_claims': bodyshop_claims, 'other_claims': other_claims}
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         filter_request = self.kwargs.get('filter_request')
@@ -257,7 +252,6 @@ class ClaimQueueListView(DealershipAccessMixin, ListView):
         dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
         user = self.request.user
         user_groups = user.groups.all()
-        pass
         filtered_claims = self.get_queryset()
         tags = Tag.objects.filter(claim__in=filtered_claims['bodyshop_claims'] | filtered_claims['other_claims'])
         #dealerships = user.dealership.all()
@@ -270,7 +264,7 @@ class ClaimQueueListView(DealershipAccessMixin, ListView):
         context['bodyshop'] = self.bodyshop
         context['bodyshop_claims'] = filtered_claims['bodyshop_claims']
         context['other_claims'] = filtered_claims['other_claims']
-        
+
         return context
 
 #####################################################################################
@@ -288,16 +282,11 @@ class NewClaimQueueListView(DealershipAccessMixin, ListView):
         filter_request = self.kwargs.get('filter_request')
         dealership_id = self.request.GET.get('dealership_id')
 
-        pass
-        pass
-        pass
 
         try:
             dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
             claim_status_obj = Status.objects.get(name=filter_request)
 
-            pass
-            pass
 
             new_line_comment = Journal.objects.filter(
                 claim_id=OuterRef('pk'),
@@ -314,10 +303,8 @@ class NewClaimQueueListView(DealershipAccessMixin, ListView):
                 'claim_tag'
             )
 
-            pass
 
             for claim in queryset[:10]:
-                pass
 
                 journals = Journal.objects.filter(
                     claim_id=claim.id,
@@ -330,18 +317,13 @@ class NewClaimQueueListView(DealershipAccessMixin, ListView):
                     'created_date'
                 )
 
-                pass
 
         except (Status.DoesNotExist, Dealership.DoesNotExist) as e:
-            pass
             queryset = Claim.objects.none()
 
         bodyshop_claims = queryset.filter(claim_tag__name='Bodyshop')
         new_claims = queryset.exclude(claim_tag__name='Bodyshop')
 
-        pass
-        pass
-        pass
 
         if bodyshop_claims.exists():
             self.bodyshop = True
@@ -709,7 +691,7 @@ class ReworkClaimQueueListView(DealershipAccessMixin, ListView):
         context['rework_claims'] = filtered_claims['rework_claims']
 
         return context
-    
+
 #####################################################################################
 # Open RO queue
 #####################################################################################
@@ -756,13 +738,13 @@ class OpenRoQueueListView(ListView):
         context['dealership'] = dealership
         context['dealership_id'] = dealership_id
         context['open_ro_claims'] = self.get_queryset()
-    
+
         return context
 
 #####################################################################################
 # FULL CLAIM VIEW
 #####################################################################################
-        
+
 @method_decorator(in_group_required('wrs-admin'), name='dispatch')
 class ClaimLineUpdateView(DealershipAccessMixin, UpdateView):
     model = Claim
@@ -799,9 +781,7 @@ class ClaimLineUpdateView(DealershipAccessMixin, UpdateView):
             )
             .order_by('-occurred_at')
         )
-        pass
 
-        pass
         #journal = (
         #    Journal.objects
         #    .filter(claim=claim)
@@ -850,9 +830,8 @@ class ClaimLineUpdateView(DealershipAccessMixin, UpdateView):
             if line.discrepancy:
                 line.total_discrepancy = calculate_line_total(line.discrepancy)
 
-       
 
-        pass
+
 
         context.update({
             'line_table': line_table,
@@ -920,14 +899,14 @@ class UpdateClaim(UpdateView):
     model = Claim
     template_name = 'claim/update_claim.html'
     form_class = ClaimUpdateForm
-    
+
     ClaimFormSet = modelformset_factory(Claim, form=ClaimForm, extra=0)
 
     def get_object(self, queryset=None):
         dealership = self.kwargs['dealership']
         repair_order = self.kwargs['repair_order']
         return get_object_or_404(claims_for_user(self.request.user), dealership__name=dealership, repair_order=repair_order)
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         dealership = self.object.dealership
@@ -941,7 +920,7 @@ class UpdateClaim(UpdateView):
         context['formset'] = formset
 
         return context
-    
+
     def form_valid(self, form):
         # Save the formset
         formset = self.ClaimFormSet(self.request.POST)
@@ -950,13 +929,13 @@ class UpdateClaim(UpdateView):
             formset.save()
 
         return super().form_valid(form)
-    
+
     def get_success_url(self):
         dealership_id = self.object.dealership_id
         return reverse('claim:claim-update', kwargs={'pk': self.object.pk, 'dealership_id': dealership_id})
 
 #####################################################################################
-# Delete claim from 'UpdateClaim' view. 
+# Delete claim from 'UpdateClaim' view.
 #####################################################################################
 
 @method_decorator(in_group_required('wrs-admin'), name='dispatch')
@@ -968,7 +947,7 @@ class DeleteClaim(View):
         dealership = get_object_or_404(accessible_dealerships(self.request.user), name=dealership)
         repair_order = kwargs['repair_order']
         claim = get_object_or_404(claims_for_user(self.request.user), dealership__name=dealership, repair_order=repair_order)
-        
+
         # Attempt to delete the claim
         try:
             claim.delete()
@@ -993,14 +972,14 @@ class UpdateJournal(UpdateView):
         journal_id = self.kwargs['journal_id']
         #print("This is the journal ID", journal_id)
         return get_object_or_404(Journal, id=journal_id)
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         claim = self.object.claim
         context['repair_order'] = claim.repair_order
         context['dealership_id'] = claim.dealership_id
         return context
-    
+
     def get_success_url(self):
         dealership_id = self.object.claim.dealership_id
         claim_id = self.object.claim.id
@@ -1031,7 +1010,7 @@ class DeleteJournal(DeleteView):
                 'dealership_id': dealership_id
             }
         )
-    
+
 @method_decorator(in_group_required('wrs-admin'), name='dispatch')
 class UpdateDiscrepancy(UpdateView):
     model = Discrepancy
@@ -1059,7 +1038,7 @@ class UpdateDiscrepancy(UpdateView):
     def get_success_url(self):
         claim = self.line.claim
         return reverse('claim:claim-update', kwargs={'pk': claim.id, 'dealership_id': claim.dealership_id})
-    
+
 @method_decorator(in_group_required('wrs-admin'), name='dispatch')
 class DeleteDiscrepancy(DeleteView):
     model = Discrepancy
@@ -1117,7 +1096,7 @@ class DiscrepancyCreate(CreateView):
         line = get_object_or_404(lines_for_user(self.request.user), id=line_id)
         form.instance.line = line
         response = super().form_valid(form)
-    
+
         line.discrepancy = form.instance
         line.save()
 
@@ -1134,7 +1113,7 @@ class DiscrepancyCreate(CreateView):
 # This is the Dealer view for updating a claim. Limited to journal and a few clami types: 'rework'..
 #####################################################################################
 
-@method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')    
+@method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
 class DealerClaimLineUpdateView(DealershipAccessMixin, UpdateView):
     http_method_names = ['get', 'head', 'options']
     model = Claim
@@ -1210,11 +1189,11 @@ class DealerClaimLineUpdateView(DealershipAccessMixin, UpdateView):
             return HttpResponseRedirect(self.get_success_url())
         else:
             return self.form_invalid(form, formset)
-        
+
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
 class ComplianceView(DealershipAccessMixin, TemplateView):
-    template_name = 'claim/compliance.html' 
-    context_object_name = 'compliance'   
+    template_name = 'claim/compliance.html'
+    context_object_name = 'compliance'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1238,10 +1217,10 @@ class ComplianceView(DealershipAccessMixin, TemplateView):
         context['compliance_percentage'] = percentage
 
         return context
-    
+
 
 ## EVENT SYSTEMS ################################################################################################################
- 
+
 @method_decorator(in_group_required('wrs-admin'), name='dispatch')
 class EventViewer(ListView):
     model = Event
@@ -1297,7 +1276,7 @@ def global_comment(request):
         claim = get_object_or_404(claims_for_user(request.user), id=claim_id)
 
         # Create a new PdfFile instance
-        if global_comment_text and global_comment_text.strip(): 
+        if global_comment_text and global_comment_text.strip():
                 Journal.objects.create(
                     comment=global_comment_text,
                     claim=claim,
@@ -1367,15 +1346,6 @@ def line_update(request):
     # DEBUG
     # ---------------------------------------------------------
 
-    pass
-    pass
-    pass
-    pass
-    pass
-    pass
-    pass
-    pass
-    pass
 
     # ---------------------------------------------------------
     # CLAIM STATUS VALIDATION
@@ -1444,7 +1414,6 @@ def line_update(request):
 
     new_line_num = request.POST.get('line_num', '').strip()
 
-    pass
 
     # Compare as strings because POST values are strings.
     if new_line_num and new_line_num != str(line.line_num):
@@ -1616,7 +1585,7 @@ def add_line(request):
 
         # Return the success URL as JSON response
         return redirect(forwarding_url)
-    
+
     return HttpResponseBadRequest('Invalid request or missing data')
 
 @require_POST
@@ -1656,11 +1625,10 @@ def add_start_date(request):
 @require_POST
 def update_ro_status(request):
     if request.method == 'POST':
-        pass
         ro_status_post = request.POST.get('ro_status')
         claim_id_post = positive_id(request.POST.get('claim_id'))
         user_id = request.user.id
-    
+
         ro_status = get_object_or_404(RoStatus, id=ro_status_post)
 
         claim = get_object_or_404(claims_for_user(request.user), id=claim_id_post)
@@ -1674,7 +1642,7 @@ def update_ro_status(request):
 
         # Return the success URL as JSON response
         return redirect(forwarding_url)
-    
+
     return HttpResponseBadRequest('Invalid request or missing data')
 
 def get_claim_status_totals(dealership_id, start_date, end_date):
@@ -1697,9 +1665,9 @@ def get_claim_status_totals(dealership_id, start_date, end_date):
 
         # Update the claim_status totals
         #claim_status_totals[claim_status_name] += line.claim_total
-        
+
         claim_status_totals[claim_status_name.replace(' ', '_')] += line.claim_total
-    
+
     # Format the claim status totals as dollar values
     for key, value in claim_status_totals.items():
         claim_status_totals[key] = "${:,.2f}".format(value)
@@ -1719,7 +1687,6 @@ def search_repair_order(request):
 
         # Create a list of dictionaries containing repair order number and ID
 
-        pass
 
         context = {
             'repair_orders': claims,
@@ -1784,7 +1751,7 @@ class AdminDashboardView(TemplateView): # This is the WRS admin dashboard
         queryset = super().get_queryset()
         claimstatus = self.kwargs.get('claimstatus')
         dealership = self.kwargs.get('dealership')
- 
+
         claim_status_id = Status.objects.get(name=claimstatus).id
         queryset = queryset.filter(claim_status=claim_status_id, dealership=dealership)
 
@@ -1792,9 +1759,9 @@ class AdminDashboardView(TemplateView): # This is the WRS admin dashboard
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-    
+
         return context
-    
+
 class DealerDashboardView(TemplateView):
     model = Claim
     template_name = 'dashboard/dealer-dashboard.html'
@@ -1804,7 +1771,7 @@ class DealerDashboardView(TemplateView):
         queryset = super().get_queryset()
         claimstatus = self.kwargs.get('claimstatus')
         dealership = self.kwargs.get('dealership')
- 
+
         claim_status_id = Status.objects.get(name=claimstatus).id
         queryset = queryset.filter(claim_status=claim_status_id, dealership=dealership)
 
@@ -1812,7 +1779,7 @@ class DealerDashboardView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-    
+
         return context
 
 ## VIEWS RELATE TO REPORTS ############################################  REPORTS  ###################################################
@@ -1910,7 +1877,7 @@ def export_to_pdf(request):
 class ReportsView(TemplateView):
 
     template_name = 'reports/reports.html'
-  
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         dealership_id = self.kwargs['dealership_id']
@@ -1935,7 +1902,7 @@ class ReportsView(TemplateView):
                 'start': context['start'],
                 'end': context['end'],
             })
-        
+
         context['form'] = form
         return context
 
@@ -1957,7 +1924,7 @@ class ReportsViewForm(View):
     def get(self, request, *args, **kwargs):
         context = self.get_context_data(**kwargs)
         return render(request, self.template_name, context)
-    
+
     def daily_report(self, dealership, start, end): ## -------------THIS IS NOT USED
         claims = Claim.objects.filter(dealership__name=dealership)
 
@@ -1979,15 +1946,13 @@ class ReportsViewForm(View):
                 })
 
         return report
-    
+
     def generate_report(self, dealership_id, report_type, start, end):
 
         if report_type == "Daily Report":
             # WE NEED TO ADD FILTER TO INCLUDE ONLY WRS ADMIN COMMENTS
             line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date__range=(start, end)).order_by('claim__repair_order')
-            pass
 
-            pass
 
             report = []
 
@@ -1999,13 +1964,12 @@ class ReportsViewForm(View):
 
             for line in line_tables:
                 repair_order = line.claim.repair_order
-                pass
                 claim_status_name = line.claim_status.name
 
                 # Skip records with a claim_status of 'New' or 'Rework'
                 if claim_status_name in ('New', 'Rework'):
                     continue
-                
+
 
                 # Check if a report item with the same repair_order already exists
                 existing_item = next((item for item in report if item['repair_order'] == repair_order), None)
@@ -2048,13 +2012,12 @@ class ReportsViewForm(View):
                     # Fetch line data and comments here
                     lines = LineTable.objects.filter(claim__repair_order=repair_order, modified_date__range=(start, end)).distinct()
                     line_ids = lines.values_list('id', flat=True)
-                    
+
 
                     line_data = []
 
                     # This needs updating since it gets comments by a specific user ID. needs update
                     for line_id in line_ids:
-                        pass
                         line_comments = Journal.objects.filter(line_id=line_id, user_id='4', created_date__range=(start, end)).values_list('comment', flat=True)
                         comments = list(line_comments)
                         comment_count = len(comments)
@@ -2093,7 +2056,7 @@ class ReportsViewForm(View):
                 report[repair_order]['ro_statuses'].append(line.claim.ro_status)
 
             return report
-        
+
         if report_type == "Discrepancy Report":
             pass
 
@@ -2109,17 +2072,15 @@ class ReportsViewForm(View):
             start_date_str = form.cleaned_data['start']
             end_date_str = form.cleaned_data['end']
 
-            pass
 
             start_date = datetime.strptime(start_date_str, '%d %b, %Y').date()
             end_date = datetime.strptime(end_date_str, '%d %b, %Y').date()
 
-            pass
 
             report = self.generate_report(dealership_id, report_type, start_date, end_date)
-        
+
             context = {
-                'report': report, 
+                'report': report,
                 'dealership': dealership_name,
                 'report_type': report_type,
                 'start_date': start_date_str,
@@ -2135,7 +2096,6 @@ class ReportsViewForm(View):
 @login_required
 def global_search(request):
     query = request.GET.get("q", "").strip()
-    pass
     claims = Claim.objects.none()
 
     if query:
@@ -2146,8 +2106,6 @@ def global_search(request):
                 .filter(repair_order=int(query))
                 .order_by("dealership__name", "-modified_date")[:100]
             )
-            pass
-            pass
 
     return render(request, "claim/global_search_results.html", {
         "query": query,
@@ -2225,10 +2183,10 @@ class xClaimListView(ListView):
         queryset = super().get_queryset()
         claimstatus = self.kwargs.get('claimstatus')
         dealership = self.kwargs.get('dealership')
- 
+
         status = get_object_or_404(Status, name=claimstatus)
-        
-    
+
+
         line_tables = LineTable.objects.filter(
             claim_status=status,
             dealership=dealership
@@ -2244,13 +2202,13 @@ class xClaimListView(ListView):
         #queryset = queryset.filter(claim_status=claim_status_id, dealership=dealership)
 
         return queryset
-    
-    
-    # This might get removed. 
+
+
+    # This might get removed.
     def paginate_queryset(self, queryset, page_size):
         # Set the desired pagination limit
         return super().paginate_queryset(queryset, self.paginate_by)
-    
+
     def get_paginate_by(self, queryset):
         # Disable default pagination by returning None
         return None

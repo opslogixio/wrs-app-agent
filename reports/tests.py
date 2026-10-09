@@ -41,3 +41,35 @@ class DocumentSecurityTests(TestCase):
             names = [name for name, _ in PublicAssetsFinder().list([])]
             self.assertIn('public.css', names)
             self.assertFalse(any(name.endswith('.pdf') for name in names))
+
+
+class DailyReportIsolationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from claim.models import Claim, ClaimType, LineTable, RoStatus, Status
+        from datetime import date
+        cls.today = date.today()
+        cls.own = Dealership.objects.create(name='Own')
+        cls.other = Dealership.objects.create(name='Other')
+        status = Status.objects.create(name='Paid')
+        ro_status = RoStatus.objects.create(name='Open')
+        claim_type = ClaimType.objects.create(name='Warranty')
+        cls.claim = Claim.objects.create(dealership=cls.own, repair_order=123, ro_status=ro_status)
+        foreign = Claim.objects.create(dealership=cls.other, repair_order=123, ro_status=ro_status)
+        for claim, dealer, amount in ((cls.claim, cls.own, '10.25'), (cls.claim, cls.own, '20.50'), (foreign, cls.other, '999.00')):
+            LineTable.objects.create(claim=claim, dealership=dealer, claim_type=claim_type, claim_status=status, claim_total=amount)
+
+    def test_daily_report_does_not_mix_identical_repair_orders_between_dealerships(self):
+        from .views import ReportService
+        from decimal import Decimal
+        with self.assertNumQueries(2):
+            report = ReportService.generate_daily_report(self.own.pk, self.today)
+            # Render-related FK access must also be served by the prefetched query.
+            for item in report:
+                for entry in item['line_data']:
+                    _ = entry['line'].claim.ro_status.name
+                    _ = entry['line'].claim_type.name
+                    _ = entry['line'].claim_status.name
+        self.assertEqual(len(report), 1)
+        self.assertEqual(report[0]['paid_claim_total'], Decimal('30.75'))
+        self.assertEqual({entry['line'].claim_id for entry in report[0]['line_data']}, {self.claim.pk})

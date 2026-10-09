@@ -12,7 +12,7 @@ from django.urls import reverse
 
 from accounts.models import Dealership
 from .forms import PdfFileForm
-from .models import Claim, ClaimType, Journal, LineTable, PdfFile, RoStatus, Status
+from .models import Claim, ClaimType, Journal, LineTable, PdfFile, RoStatus, Status, Tag
 
 
 class SecurityBaselineTests(TestCase):
@@ -202,3 +202,14 @@ class SecurityBaselineTests(TestCase):
             list(response.streaming_content)
             self.client.logout()
             self.assertEqual(self.client.get(reverse('claim:download-pdf', args=[pdf.pk])).status_code, 302)
+
+    def test_failed_claim_creation_rolls_back_all_records(self):
+        tag = Tag.objects.create(name='Missing Claim Type')
+        before = Claim.objects.count()
+        response = self.client.post(reverse('claim:claim-form', args=[self.own.pk]), {
+            'dealership': self.own.pk, 'repair_order': '777',
+            'claim_tag': [tag.pk], 'comment': 'Initial comment',
+        })
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(Claim.objects.count(), before)
+        self.assertFalse(Journal.objects.exists())

@@ -230,7 +230,7 @@ class ReportsForm(forms.Form):
 ### LINE VIEW FORMS #############
 
 class LinePdfFileForm(forms.ModelForm):
-    pdf_file = forms.FileField(label='Upload PDF File')
+    pdf_file = forms.FileField(label='Upload PDF File', validators=[validate_pdf])
 
     class Meta:
         model = PdfFile

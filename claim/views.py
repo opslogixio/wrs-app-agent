@@ -48,6 +48,7 @@ def is_superuser(user):
 
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
 #@method_decorator(user_passes_test(is_superuser) or in_group_required('Dealer Admin'), name='dispatch')
+@method_decorator(transaction.atomic, name='post')
 class ClaimFormView(DealershipAccessMixin, View):
     claim_form_class = ClaimForm
     journal_form_class = JournalForm

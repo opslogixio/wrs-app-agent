@@ -29,7 +29,7 @@
           {% else %}
           Claims in the " <span style="color: #34A56F">{{ claim_status }}</span> " Queue for <span style="color: #34A56F">{{ dealership }}</span>
           {% endif %}
-        </h1>        
+        </h1>
         <p class="card-title-desc">
           Click on a repair order to view or edit claim.
         </p>
@@ -37,7 +37,7 @@
     </div>
   </div>
 </div>
-{% if bodyshop %}           
+{% if bodyshop %}
 <div class="row">
   <div class="col-lg-12">
     <div class="card">
@@ -45,7 +45,7 @@
         <div class="table-responsive">
 
           <!-- Table for Bodyshop claims -->
-          <h4>Bodyshop Claims</h4> 
+          <h4>Bodyshop Claims</h4>
           <table class="table table-hover table-bordered table-sort table-arrows" id="bodyshopTable" width="100%" cellspacing="0">
             <thead>
               <tr>
@@ -67,15 +67,15 @@
                       {{ claim_data.claim.repair_order }}
                     </a>
                   </td>
-    
-    
+
+
 
                   <td>{{ line_info.line.line_num }}</td>
                   <td>{{ claim_data.claim.ro_status }}</td>
                   <td data-sort="{{ line_info.line.start_date|date:'Ymd' }}">
                       {{ line_info.line.start_date|date:'F d, Y' }}
                   </td>
-                  <td>{{ line_info.claim_age }}</td> 
+                  <td>{{ line_info.claim_age }}</td>
                   <td>${{ line_info.line.claim_total|floatformat:2|intcomma }}</td>
                 </tr>
 
@@ -83,7 +83,7 @@
               {% endfor %}
             </tbody>
           </table>
-          
+
         </div>
       </div>
     </div>
@@ -117,7 +117,7 @@
                     {% else %}{% url 'claim:dealer-claim-update' pk=claim_data.claim.id dealership_id=dealership_id %}{% endif %}">
                       {{ claim_data.claim.repair_order }}
                     </a>
-                  </td> 
+                  </td>
                   <td>{{ line_info.line.line_num }}</td>
                   <td>{{ claim_data.claim.ro_status }}</td>
                   <td data-sort="{{ line_info.line.start_date|date:'Ymd' }}">
@@ -134,14 +134,14 @@
         </div>
       </div>
     </div>
-  </div>    
+  </div>
 </div>
 
 {% include 'claim/pagination.html' %}
 {% endblock contents %}
 {% block javascript %}
 <script src="{% static 'js/table-sort.js' %}"></script>
-        <!-- JAVASCRIPT 
+        <!-- JAVASCRIPT
         <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
         <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
         <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
@@ -152,7 +152,7 @@
 
         <!-- form mask init -->
         <script src="{% static 'js/pages/form-mask.init.js' %}"></script>
-        
+
         <script src="{% static 'js/app.js' %}"></script>
 
         <script type="text/javascript">

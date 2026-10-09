@@ -97,6 +97,7 @@ python3 - <<'REPORTCHECK'
 import os, subprocess
 from pathlib import Path
 values = dict(line.split('=', 1) for line in Path('/etc/wrs-app/wrs-app.env').read_text().splitlines() if line and not line.startswith('#'))
-subprocess.run(['runuser', '-u', 'wrs-app', '--', '/opt/wrs-app/.venv/bin/python', 'deploy/check_report_worker.py'],
-    cwd='/opt/wrs-app', env={**os.environ, **values}, check=True)
+for script in ('deploy/check_report_worker.py', 'deploy/check_queue_context.py'):
+    subprocess.run(['runuser', '-u', 'wrs-app', '--', '/opt/wrs-app/.venv/bin/python', script],
+        cwd='/opt/wrs-app', env={**os.environ, **values}, check=True)
 REPORTCHECK

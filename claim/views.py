@@ -802,7 +802,7 @@ class DealerClaimLineUpdateView(DealershipAccessMixin, UpdateView):
         dealership_id = self.kwargs.get('dealership_id')
         dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
         line_table = line_edit_values(self.request, claim,
-            LineTable.objects.filter(claim=claim, dealership_id=dealership_id))
+            LineTable.objects.filter(claim=claim, dealership_id=dealership_id).select_related('claim_status', 'claim_type'))
         statuses = list(Status.objects.all())
         for line in line_table:
             current = line.claim_status.name.strip().lower() if line.claim_status else ''

@@ -1313,10 +1313,9 @@ COMMENT_REQUIRED_STATUSES = {
     'requires attention',
 }
 
+@in_group_required('dealer-admin', 'wrs-admin')
 @require_POST
 @transaction.atomic
-@in_group_required('dealer-admin','wrs-admin')
-@require_POST
 def line_update(request):
     forwarding_url = safe_return_url(request)
 
@@ -1328,7 +1327,7 @@ def line_update(request):
     }
 
     line_id = positive_id(request.POST.get('line_id'))
-    line = get_object_or_404(lines_for_user(request.user), id=line_id)
+    line = get_object_or_404(lines_for_user(request.user).select_for_update().select_related('claim', 'claim_status', 'claim_type'), id=line_id)
 
     if not is_wrs_admin(request.user):
         immutable = {
@@ -1412,7 +1411,7 @@ def line_update(request):
             (
                 f'A comment is required when changing '
                 f'line {line.line_num} from '
-                f'{line.claim_status.name} to '
+                f'{line.claim_status.name if line.claim_status else "Unset"} to '
                 f'{new_claim_status.name}.'
             )
         )
@@ -1597,7 +1596,6 @@ def add_line(request):
 
     return HttpResponseBadRequest('Invalid request or missing data')
 
-@require_POST
 @in_group_required('wrs-admin')
 @require_POST
 def delete_line(request, line_id):

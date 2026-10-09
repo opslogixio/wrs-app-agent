@@ -12,7 +12,7 @@ install -d -m 0755 /opt/wrs-app /var/lib/wrs-app /var/lib/wrs-app/staticfiles
 install -d -m 0700 /etc/wrs-app
 rsync -a --exclude=.git --exclude=.venv --exclude=__pycache__ --exclude='*.pyc' --exclude='.env*' --exclude='*.log' --exclude=staticfiles "$DEPLOY_SOURCE/" /opt/wrs-app/
 python3 -m venv /opt/wrs-app/.venv
-/opt/wrs-app/.venv/bin/pip install -r /opt/wrs-app/requirements.txt
+/opt/wrs-app/.venv/bin/pip install -r /opt/wrs-app/requirements.lock.txt
 /opt/wrs-app/.venv/bin/pip freeze > /opt/wrs-app/requirements.lock.txt
 python3 - <<'PY'
 from pathlib import Path

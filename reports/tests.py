@@ -27,7 +27,7 @@ class DocumentSecurityTests(TestCase):
                 (folder / 'report.pdf').write_bytes(b'%PDF-1.4\n')
             response = self.client.get(reverse('reports:download-report', args=['Assigned_Dealer/report.pdf']))
             self.assertEqual(response.status_code, 200)
-            response.close()
+            list(response.streaming_content)
             self.assertEqual(self.client.get(reverse('reports:download-report', args=['Other_Dealer/report.pdf'])).status_code, 404)
             self.assertEqual(self.client.get(reverse('reports:download-report', args=['../outside.pdf'])).status_code, 404)
 

@@ -140,7 +140,7 @@ class SecurityBaselineTests(TestCase):
             pdf = PdfFile.objects.create(claim=self.claim, pdf_file='static/upload/claim.pdf', pdf_name='claim')
             response = self.client.get(reverse('claim:download-pdf', args=[pdf.pk]))
             self.assertEqual(response.status_code, 200)
-            response.close()
+            list(response.streaming_content)
             pdf.claim = self.foreign
             pdf.save()
             self.assertEqual(self.client.get(reverse('claim:download-pdf', args=[pdf.pk])).status_code, 404)
@@ -199,6 +199,6 @@ class SecurityBaselineTests(TestCase):
             pdf = PdfFile.objects.get()
             response = self.client.get(reverse('claim:download-pdf', args=[pdf.pk]))
             self.assertEqual(response.status_code, 200)
-            response.close()
+            list(response.streaming_content)
             self.client.logout()
             self.assertEqual(self.client.get(reverse('claim:download-pdf', args=[pdf.pk])).status_code, 302)

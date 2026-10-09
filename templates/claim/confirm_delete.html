@@ -1,0 +1,14 @@
+{% extends 'partials/base.html' %}
+{% block css %}{% include 'partials/css.html' %}{% endblock %}
+{% block contents %}
+<div class="card"><div class="card-body">
+  <h1 class="card-title">Confirm Delete</h1>
+  <p>Are you sure you want to delete <strong>{{ delete_label }}</strong>?</p>
+  <p class="alert alert-warning">{{ delete_warning }} This action cannot be undone.</p>
+  <form method="post">{% csrf_token %}
+    <button type="submit" class="btn btn-danger">Yes, Delete</button>
+    <a href="{{ cancel_url }}" class="btn btn-secondary">Cancel</a>
+  </form>
+</div></div>
+{% endblock %}
+{% block footer %}{% include 'partials/footer.html' %}{% endblock %}

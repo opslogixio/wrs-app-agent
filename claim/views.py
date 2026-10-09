@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta
 from django.utils.dateformat import DateFormat
 from django.views.generic import View, FormView, CreateView, ListView, DetailView, TemplateView, UpdateView, DeleteView
 from django.views.generic.edit import UpdateView
-from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.http import require_POST, require_GET, require_http_methods
 from django.http import HttpResponseRedirect, HttpResponse, HttpResponseBadRequest, JsonResponse, HttpResponseNotAllowed, Http404
 from django.db.models import Q, OuterRef, Subquery, Count, Prefetch
 from io import BytesIO
@@ -562,12 +562,6 @@ class UpdateClaim(UpdateView):
         return context
 
     def form_valid(self, form):
-        # Save the formset
-        formset = self.ClaimFormSet(self.request.POST)
-        if form.is_valid() and formset.is_valid():
-            form.save()
-            formset.save()
-
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -580,6 +574,15 @@ class UpdateClaim(UpdateView):
 
 @method_decorator(in_group_required('wrs-admin'), name='dispatch')
 class DeleteClaim(View):
+
+    def get(self, request, *args, **kwargs):
+        claim = get_object_or_404(claims_for_user(request.user),
+            dealership__name=kwargs['dealership'], repair_order=kwargs['repair_order'])
+        return render(request, 'claim/confirm_delete.html', {
+            'delete_label': f'Repair Order {claim.repair_order}',
+            'delete_warning': 'This deletes the claim and its lines, comments, and attachments.',
+            'cancel_url': reverse('claim:claim-update', args=[claim.pk, claim.dealership_id]),
+        })
 
     def post(self, request, *args, **kwargs):
         redirect_url = '/dashboard/'
@@ -1213,9 +1216,16 @@ def add_line(request):
     return HttpResponseBadRequest('Invalid request or missing data')
 
 @in_group_required('wrs-admin')
-@require_POST
+@require_http_methods(['GET', 'POST'])
 def delete_line(request, line_id):
     line = get_object_or_404(lines_for_user(request.user), id=line_id)
+
+    if request.method == 'GET':
+        return render(request, 'claim/confirm_delete.html', {
+            'delete_label': f'Line {line.line_num} on Repair Order {line.claim.repair_order}',
+            'delete_warning': 'This deletes the line and its associated comments.',
+            'cancel_url': reverse('claim:claim-update', args=[line.claim_id, line.dealership_id]),
+        })
 
     # Save redirect location before deleting
     forwarding_url = safe_return_url(request)

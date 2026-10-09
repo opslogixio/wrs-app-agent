@@ -264,11 +264,7 @@
                     <button type="submit" class="btn btn-success">Save</button>
                   </td>
                   <td rowspan="3">
-                      <button type="submit"
-                              class="btn btn-danger"
-                              form="delete_form_{{ line.id }}">
-                          Delete
-                      </button>
+                      <a class="btn btn-danger" href="{% url 'claim:delete-line' line_id=line.id %}">Delete</a>
                   </td>
                 </tr>
                 <tr>
@@ -297,12 +293,6 @@
 
             </table>
 </form>
-<form method="post"
-                    id="delete_form_{{ line.id }}"
-                    action="{% url 'claim:delete-line' line_id=line.id %}"
-                    onsubmit="return confirm('Are you sure you want to delete line {{ line.line_num }}? This action cannot be undone.');">
-                  {% csrf_token %}
-              </form>
             {% endfor %}
           </div>
         </div>

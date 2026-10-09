@@ -175,7 +175,7 @@ class ReportService:
 
     @staticmethod
     def daily_lines(start_date):
-        comments = Journal.objects.filter(user_id__in=[2, 14], created_date=start_date).order_by('created_date', 'pk')
+        comments = Journal.objects.filter(user__groups__name='wrs-admin', created_date=start_date).order_by('created_date', 'pk')
         return (LineTable.objects.filter(modified_date=start_date)
             .select_related('claim', 'claim__ro_status', 'claim_status', 'claim_type', 'discrepancy')
             .prefetch_related(Prefetch('journal_set', queryset=comments, to_attr='report_comments'))
@@ -279,10 +279,10 @@ class ReportService:
         if filter_request == 'Aging':
             filters.update(linetable__claim_status__name='Requires Attention',
                 linetable__start_date__lte=today - timedelta(days=90))
-        latest_comment = (Journal.objects.filter(line_id=OuterRef('pk'))
-            .order_by('-created_date', '-pk').values('comment')[:1])
+        comments = Journal.objects.filter(user__groups__name='wrs-admin').order_by('-created_date', '-pk')
         lines = (LineTable.objects.filter(dealership_id=dealership_id)
-            .select_related('claim_status', 'claim_type').annotate(latest_comment=Subquery(latest_comment)))
+            .select_related('claim_status', 'claim_type')
+            .prefetch_related(Prefetch('journal_set', queryset=comments, to_attr='admin_comments')))
         claims = (Claim.objects.filter(dealership_id=dealership_id,
             linetable__dealership_id=dealership_id, **filters).distinct()
             .select_related('ro_status').prefetch_related('claim_tag', Prefetch('linetable_set', queryset=lines))
@@ -291,7 +291,9 @@ class ReportService:
         for claim in claims:
             item = {'claim': claim, 'lines': [
                 {'line': line, 'claim_age': (today - line.start_date).days if line.start_date else None,
-                    'comments': line.latest_comment or 'No Comment'}
+                    'comments': '\n'.join(journal.comment for journal in line.admin_comments
+                        if journal.created_date == line.admin_comments[0].created_date and journal.comment)
+                        if line.admin_comments else 'No Comment'}
                 for line in claim.linetable_set.all()
             ]}
             key = 'bodyshop_claims' if any(tag.name == 'Bodyshop' for tag in claim.claim_tag.all()) else 'ra_claims'

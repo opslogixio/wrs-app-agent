@@ -1,6 +1,6 @@
 
 from django.contrib.auth.models import AbstractUser, Group
-from django.db import models
+from django.db import models, router, transaction
 from django.utils import timezone
 from datetime import date, datetime
 import os
@@ -64,6 +64,21 @@ class Claim(models.Model):
     # Metadata
     def __int__(self):
         return self.id
+
+    def save(self, *args, **kwargs):
+        using = kwargs.get('using') or router.db_for_write(type(self), instance=self)
+        with transaction.atomic(using=using):
+            old_dealership = None
+            if self.pk:
+                old_dealership = type(self).objects.using(using).select_for_update().filter(
+                    pk=self.pk).values_list('dealership_id', flat=True).first()
+            super().save(*args, **kwargs)
+            update_fields = kwargs.get('update_fields')
+            dealership_saved = update_fields is None or bool({'dealership', 'dealership_id'} & set(update_fields))
+            if dealership_saved and old_dealership != self.dealership_id:
+                for line in self.linetable_set.using(using).select_for_update():
+                    line.dealership_id = self.dealership_id
+                    line.save(using=using, update_fields=['dealership'])
     
 def user_directory_path(instance, filename):
     # Get the file extension

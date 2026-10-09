@@ -91,7 +91,7 @@
                     <td>{{ line_info.line.start_date }}</td>
                     <td>{{ line_info.claim_age }}</td>  <!-- This will display the claim age -->
                     <td>{{ line_info.line.claim_total }}</td>
-                    <td class="comments-cell">{{ line_info.comments }}</td>
+                    <td class="comments-cell">{{ line_info.comments|linebreaksbr }}</td>
                   </tr>
                   {% endif %}
                 {% endfor %}

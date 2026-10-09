@@ -84,7 +84,7 @@
                                                                             <ul class="list-group list-group-flush mb-1">
                                                                                 {% for file in day.files %}
                                                                                     <li class="list-group-item">
-                                                                                        <a href="{% url 'reports:download-report' day.path|add:file %}" target="_blank">
+                                                                                        <a href="{% url 'reports:download-report' day.path|add:file %}" download>
                                                                                             {{ file }}
                                                                                         </a>
                                                                                     </li>

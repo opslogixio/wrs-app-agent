@@ -282,3 +282,79 @@ class ReportWorkerConcurrencyTests(TransactionTestCase):
             self.assertFalse(worker.is_alive(), 'Worker blocked instead of skipping a locked job')
         self.assertEqual(errors, [])
         self.assertEqual(results, [second.pk])
+
+
+class ReportTaskTests(TestCase):
+    def setUp(self):
+        from claim.models import Claim, LineTable, Status
+        self.dealer = Dealership.objects.create(name='Task Reports')
+        self.admin = get_user_model().objects.create_user(email='new-admin@example.invalid')
+        self.admin.groups.add(Group.objects.create(name='wrs-admin'))
+        self.user = get_user_model().objects.create_user(email='dealer-comment@example.invalid')
+        self.user.groups.add(Group.objects.create(name='dealer-admin'))
+        self.user.dealership.add(self.dealer)
+        self.claim = Claim.objects.create(dealership=self.dealer, repair_order=555)
+        self.line = LineTable.objects.create(claim=self.claim, dealership=self.dealer,
+            claim_status=Status.objects.create(name='Requires Attention'))
+        self.client.force_login(self.user)
+
+    def test_ra_reports_include_admin_comments_from_latest_comment_day(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from claim.models import Journal
+        from .views import ReportService
+        today = timezone.localdate()
+        old = Journal.objects.create(claim=self.claim, line=self.line, user=self.admin, comment='Old admin comment')
+        Journal.objects.filter(pk=old.pk).update(created_date=today - timedelta(days=2))
+        first = Journal.objects.create(claim=self.claim, line=self.line, user=self.admin, comment='Latest first')
+        second = Journal.objects.create(claim=self.claim, line=self.line, user=self.admin, comment='Latest second <unsafe>')
+        Journal.objects.filter(pk__in=[first.pk, second.pk]).update(created_date=today - timedelta(days=1))
+        Journal.objects.create(claim=self.claim, line=self.line, user=self.user, comment='Exclude dealer comment today')
+        report = ReportService.generate_ra_report(self.dealer.pk, 'Requires Attention')
+        text = report['ra_claims'][0]['lines'][0]['comments']
+        self.assertIn('Latest first', text)
+        self.assertIn('Latest second', text)
+        self.assertNotIn('Old admin', text)
+        self.assertNotIn('dealer comment', text)
+        from django.template.loader import render_to_string
+        for template in ('reports/rareport_pdf.html', 'reports/ra_reportsview.html'):
+            html = render_to_string(template, {**report, 'dealership': self.dealer})
+            self.assertNotIn('<unsafe>', html)
+
+    def test_daily_comments_use_group_membership_and_requested_date(self):
+        from django.utils import timezone
+        from claim.models import Journal
+        from .views import ReportService
+        Journal.objects.create(claim=self.claim, line=self.line, user=self.admin, comment='Dynamic admin comment')
+        Journal.objects.create(claim=self.claim, line=self.line, user=self.user, comment='Dealer comment')
+        data = ReportService.get_line_data(self.claim.pk, timezone.localdate())
+        self.assertEqual(data[0]['comments'], ['Dynamic admin comment'])
+
+    def test_no_admin_comments_produces_placeholder(self):
+        from .views import ReportService
+        self.assertEqual(ReportService.generate_ra_report(self.dealer.pk, 'Requires Attention')['ra_claims'][0]['lines'][0]['comments'], 'No Comment')
+
+    def test_archive_page_uses_post_export_even_without_existing_pdf(self):
+        from django.template.loader import render_to_string
+        html = render_to_string('reports/archivedailyreportsview.html', {
+            'dealership': self.dealer, 'report_type': 'Archived Report', 'start_date': '2026-10-09', 'pdf_exists': False})
+        self.assertIn('method="post"', html)
+        self.assertNotIn('report_export/?', html)
+
+    def test_ready_download_is_attachment_for_every_report_type(self):
+        from datetime import date
+        from django.utils import timezone
+        from .jobs import enqueue_report, report_path
+        with tempfile.TemporaryDirectory() as directory, override_settings(REPORT_ROOT=Path(directory)):
+            for name in ('Daily Report', 'Archived Report', 'Discrepancy Report', 'RA Report'):
+                job = enqueue_report(self.user, self.dealer, name, date(2026, 10, 9))
+                job.state, job.finished_at = 'completed', timezone.now()
+                job.save()
+                path = report_path(job)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'%PDF-1.4\n')
+                response = self.client.get(reverse('reports:report-job-download', args=[job.pk]))
+                self.assertTrue(response['Content-Disposition'].startswith('attachment;'))
+                self.assertEqual(b''.join(response.streaming_content), b'%PDF-1.4\n')
+                response = self.client.get(reverse('reports:report-job', args=[job.pk]))
+                self.assertContains(response, "document.getElementById('report-download').click()")

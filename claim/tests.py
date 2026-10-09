@@ -743,3 +743,86 @@ class RepairOrderSearchTests(TestCase):
         self.assertContains(self.search(), reverse('claim:claim-update', args=[self.claim.pk, self.own.pk]))
         self.client.force_login(self.viewer)
         self.assertNotContains(self.search(), 'View / edit claim')
+
+
+class ClaimReassignmentAndDeleteTests(TestCase):
+    setUpTestData = classmethod(SecurityBaselineTests.setUpTestData.__func__)
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_portal_reassignment_moves_lines_and_preserves_related_records(self):
+        journal = Journal.objects.create(claim=self.claim, line=self.line, comment='Keep this comment')
+        attachment = PdfFile.objects.create(claim=self.claim, pdf_name='Keep file', pdf_file='private/file.pdf')
+        url = reverse('claim:update-claim', args=[self.own.name, self.claim.repair_order])
+        response = self.client.post(url, {'dealership': self.other.pk,
+            'repair_order': self.claim.repair_order, 'ro_status': self.open.pk})
+        self.assertRedirects(response, reverse('claim:claim-update', args=[self.claim.pk, self.other.pk]))
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.dealership_id, self.other.pk)
+        self.assertEqual(Journal.objects.get(pk=journal.pk).line_id, self.line.pk)
+        self.assertEqual(PdfFile.objects.get(pk=attachment.pk).claim_id, self.claim.pk)
+        self.client.force_login(self.dealer)
+        self.assertEqual(self.client.get(reverse('claim:dealer-claim-update', args=[self.claim.pk, self.own.pk])).status_code, 404)
+        self.dealer.dealership.set([self.other])
+        response = self.client.get(reverse('claim:dealer-claim-update', args=[self.claim.pk, self.other.pk]))
+        self.assertContains(response, 'Keep this comment')
+
+    def test_direct_model_update_moves_every_line(self):
+        second = LineTable.objects.create(claim=self.claim, dealership=self.own, claim_status=self.rework)
+        self.claim.dealership = self.other
+        self.claim.save(update_fields=['dealership'])
+        self.assertEqual(set(LineTable.objects.filter(claim=self.claim).values_list('dealership_id', flat=True)), {self.other.pk})
+
+    def test_move_rolls_back_when_line_update_fails(self):
+        self.claim.dealership = self.other
+        with patch('claim.models.LineTable.save', side_effect=RuntimeError('Failed line save')):
+            with self.assertRaises(RuntimeError):
+                self.claim.save(update_fields=['dealership'])
+        self.claim.refresh_from_db()
+        self.line.refresh_from_db()
+        self.assertEqual(self.claim.dealership_id, self.own.pk)
+        self.assertEqual(self.line.dealership_id, self.own.pk)
+
+    def test_unpersisted_dealership_change_does_not_move_lines(self):
+        self.claim.dealership = self.other
+        self.claim.save(update_fields=['ro_status'])
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.dealership_id, self.own.pk)
+
+    def test_dealer_cannot_reassign_claim(self):
+        self.client.force_login(self.dealer)
+        response = self.client.post(reverse('claim:update-claim', args=[self.own.name, self.claim.repair_order]),
+            {'dealership': self.other.pk, 'repair_order': self.claim.repair_order, 'ro_status': self.open.pk})
+        self.assertEqual(response.status_code, 403)
+
+    def test_each_delete_get_confirms_without_mutation_and_cancel_is_available(self):
+        from .models import Discrepancy
+        discrepancy = Discrepancy.objects.create(labor=10)
+        self.line.discrepancy = discrepancy
+        self.line.save(update_fields=['discrepancy'])
+        journal = Journal.objects.create(claim=self.claim, line=self.line, comment='Retain until confirmed')
+        urls = [reverse('claim:delete-line', args=[self.line.pk]),
+            reverse('claim:delete-claim', args=[self.own.name, self.claim.repair_order]),
+            reverse('claim:delete-journal', args=[journal.pk]),
+            reverse('claim:delete-discrepancy', args=[discrepancy.pk, self.line.pk])]
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertContains(response, 'Are you sure')
+                self.assertContains(response, 'Cancel')
+        self.assertTrue(LineTable.objects.filter(pk=self.line.pk).exists())
+        self.assertTrue(Claim.objects.filter(pk=self.claim.pk).exists())
+        self.assertTrue(Journal.objects.filter(pk=journal.pk).exists())
+        self.assertTrue(Discrepancy.objects.filter(pk=discrepancy.pk).exists())
+        response = self.client.post(urls[0])
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(LineTable.objects.filter(pk=self.line.pk).exists())
+
+    def test_delete_confirmation_requires_admin_and_escapes_line_names(self):
+        self.line.line_num = "<script>alert('delete')</script>"
+        self.line.save(update_fields=['line_num'])
+        url = reverse('claim:delete-line', args=[self.line.pk])
+        self.assertContains(self.client.get(url), '&lt;script&gt;')
+        self.client.force_login(self.dealer)
+        self.assertEqual(self.client.get(url).status_code, 403)

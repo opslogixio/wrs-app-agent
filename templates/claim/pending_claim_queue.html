@@ -1,0 +1,169 @@
+<!-- claim_queue.html -->
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+{% load humanize %}
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<div class="row">
+  <div class="col-lg-12">
+      <div class="card">
+          <div class="card-body">
+            <h1 class="card-title">
+              {% if messages %}
+                <div class="container">
+                  {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">
+                      {{ message }}
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              {% if claim_status == 'All' %}
+              This is a list of all the repair orders for <span style="color: #34A56F">{{ dealership }}</span>
+              {% else %}
+              Claims in the " <span style="color: #34A56F">{{ claim_status }}</span> " Queue for <span style="color: #34A56F">{{ dealership }}</span>
+              {% endif %}
+            </h1>        
+            <p class="card-title-desc">
+              Click on a repair order to view or edit claim.
+            </p>
+          </div>
+      </div>
+  </div>
+</div>           
+<div class="row">
+  <div class="col-lg-12">
+      <div class="card">
+          <div class="card-body">
+            <div class="table-responsive">
+              <script src="{% static 'js/table-sort.js' %}"></script>
+              {% if bodyshop %}
+                <!-- Table for Bodyshop claims -->
+                <h4>Bodyshop Claims</h4>             
+                <table class="table table-hover table-bordered table-sort table-arrows" id="bodyshopTable" width="100%" cellspacing="0">
+                  <thead>
+                    <tr>
+                      <th class="order-by-desc">Repair Order</th>
+                      <th>Claim Line</th>
+                      <th>RO Status</th>
+                      <th class="data-sort">Repair Completion Date</th>
+                      <th>Claim Age Days</th>
+                      <th>Line Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for claim_data in bodyshop_claims %}
+                    {% for line in claim_data.linetable_set.all %}
+                    {% if line.claim_status.name == 'Pending' %}
+                      <tr>
+                        <td>
+                          <a href="{% if 'wrs-admin' in user_groups.first.name %}{% url 'claim:claim-update' pk=claim_data.id dealership_id=dealership_id %}
+                          {% else %}{% url 'claim:dealer-claim-update' pk=claim_data.id dealership_id=dealership_id %}{% endif %}">
+                            {{ claim_data.repair_order }}
+                          </a>
+                        </td>
+                        
+                        <td>{{ line.line_num }}</td>
+                        <td>{{ claim_data.ro_status }}</td>
+                        <td data-sort="{{ line_info.line.start_date|date:'Ymd' }}">
+                            {{ line_info.line.start_date|date:'F d, Y' }}
+                        </td>
+                        <td>{{ line_info.claim_age }}</td>
+                        <td>${{ line.claim_total|floatformat:2|intcomma }}</td>
+                      </tr>
+                      {% endif %}
+                      {% endfor %}
+
+                    {% endfor %}
+                  </tbody>
+                </table>
+                
+
+                {% endif %}
+
+            </div>
+            <h4>Claims</h4>
+            <div class="table-responsive">
+              <script src="{% static 'js/table-sort.js' %}"></script>
+              
+                <!-- Table for Bodyshop claims -->
+                              
+                <table class="table table-hover table-bordered table-sort table-arrows" id="bodyshopTable" width="100%" cellspacing="0">
+                  <thead>
+                    <tr>
+                      <th class="order-by-desc">Repair Order</th>
+                      <th>Claim Line</th>
+                      <th>RO Status</th>
+                      <th class="data-sort">Completed Date</th>
+                      <th>Claim Age Days</th>
+                      <th>Line Total</th>
+                    </tr>
+                  </thead>
+            <tbody>
+              {% for claim_data in pending_claims %}
+                {% for line_info in claim_data.lines %}
+                  {% if line_info.line.claim_status.name == 'Pending' %}
+                <tr>
+                  <td><a href="{% if 'wrs-admin' in user_groups.first.name %}{% url 'claim:claim-update' pk=claim_data.claim.id dealership_id=dealership_id %}
+                    {% else %}{% url 'claim:dealer-claim-update' pk=claim_data.claim.id dealership_id=dealership_id %}{% endif %}">
+                      {{ claim_data.claim.repair_order }}
+                    </a>
+                  </td> 
+                  <td>{{ line_info.line.line_num }}</td>
+                  <td>{{ claim_data.claim.ro_status }}</td>
+                  <td data-sort="{{ line_info.line.start_date|date:'Ymd' }}">
+                      {{ line_info.line.start_date|date:'F d, Y' }}
+                  </td>
+                  <td>{{ line_info.claim_age }}</td>  <!-- This will display the claim age -->
+                  <td>${{ line_info.line.claim_total|floatformat:2|intcomma }}</td>
+                </tr>
+                  {% endif %}
+                {% endfor %}
+              {% endfor %}
+            </tbody>
+                </table>
+
+  
+            </div>     
+          </div>
+      </div>
+  </div>
+</div>
+                <!-- Table for all other claims -->
+
+
+{% endblock contents %}
+{% block javascript %}
+        <!-- JAVASCRIPT 
+        <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+        <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+        <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+        <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+        <!-- form mask -->
+        <script src="{% static 'libs/inputmask/min/jquery.inputmask.bundle.min.js' %}"></script>
+
+        <!-- form mask init -->
+        <script src="{% static 'js/pages/form-mask.init.js' %}"></script>
+        
+        <script src="{% static 'js/app.js' %}"></script>
+
+        <script type="text/javascript">
+            $(window).on('load', function() {
+                $('#manualModal').modal('show');
+            });
+        </script>
+
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

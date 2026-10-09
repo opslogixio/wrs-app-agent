@@ -1,0 +1,95 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-body">
+              <h1 class="card-title">
+                Updating Discrepancy for Line Number: <span style="color: #34A56F">{{ line_num }}</span> on Repair Order: <span style="color: #34A56F">{{ repair_order }}</span>
+              </h1>        
+            </div>
+        </div>
+    </div>
+</div> 
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="table-responsive mb-3 mt-3">
+                        <script src="{% static 'js/table-sort.js' %}"></script>
+                        <!--https://www.cssscript.com/minimal-table-sorter/-->
+
+                        <form method="post">
+                            {% csrf_token %}
+                            <table class="table align-middle table-bordered" id="sample_editable_1" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>Labor</th>
+                                        <th>Parts</th>
+                                        <th>Maintenance</th>
+                                        <th>Other</th>
+                                        <th>Core</th>
+                                        <th>Rental</th>
+                                        <th>Sublet</th>
+                                        <th colspan="2">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><input type="text" class="form-control" name="labor" id="labor" value="{{ form.instance.labor }}"></td>
+                                        <td><input type="text" class="form-control" name="parts" id="parts" value="{{ form.instance.parts }}"></td>
+                                        <td><input type="text" class="form-control" name="maint" id="maint" value="{{ form.instance.maint }}"></td>
+                                        <td><input type="text" class="form-control" name="other" id="other" value="{{ form.instance.other }}"></td>
+                                        <td><input type="text" class="form-control" name="core" id="core" value="{{ form.instance.core }}"></td>
+                                        <td><input type="text" class="form-control" name="rental" id="rental" value="{{ form.instance.rental }}"></td>
+                                        <td><input type="text" class="form-control" name="sublet" id="sublet" value="{{ form.instance.sublet }}"></td>
+                                        <td rowspan="3"><button type="submit" class="btn btn-success">Save</button></td>
+                                        <td rowspan="3">
+                                            <a href="{% url 'claim:delete-discrepancy' form.instance.id line_id %}" class="btn btn-danger">
+                                                Delete
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </form>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+{% endblock contents %}
+{% block javascript %}
+          <!-- JAVASCRIPT 
+          <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+          <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+          <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+          <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+          <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+  
+          <script src="{% static 'js/app.js' %}"></script>
+  
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<div class="row">
+  <div class="col-lg-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="invoice-title">
+          {% if pdf_exists %}
+          <a class="btn btn-outline-success float-end me-5" href="{{ pdf_url }}" role="button">View PDF</a>
+          {% else %}
+          <a class="btn btn-outline-success float-end me-5" href="{% url 'reports:report-export' %}?dealership={{ dealership }}&start_date={{ start_date }}&report_type={{ report_type }}" role="button">Export to PDF</a>
+          {% endif %}
+          <div class="mb-4">
+            <h4>Dealership: <span style="color: #34A56F">{{ dealership }}</span></h4>
+            <h4>Report Type: <span style="color: #34A56F">{{ report_type }}</span></h4>
+            <h4>Report Date: <span style="color: #34A56F">{{ start_date }}</span></h4>
+          </div>
+        </div>
+        {% if message %}
+          <p>{{ message }}</p>
+        {% else %}
+        <div class="row">
+          {% for item in report %}
+          <div class="py-2 mt-3">
+            <h3 class="font-size-15 fw-bold">Repair Order: <span style="color: #34A56F">{{ item.repair_order }}</span></h3>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-nowrap">
+              <thead class="table-light">
+                <tr>
+                  <th>Line #</th>
+                  <th>Claim Total</th>
+                  <th>Claim Status</th>
+                  <th>RO Status</th>
+                  <th>Comments ({{ item.lines|length }})</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for line_data in item.lines %}
+
+                <tr>
+                  <td>{{ line_data.line_num }}</td>
+                  <td>{{ line_data.claim_total }}</td>
+                  <td>{{ line_data.claim_status.name }}</td>
+                  <td>{{ item.ro_status }}</td>
+                  <td>
+                    {% if line_data.comments %}
+                      {% for comment in line_data.comments %}
+                        <p>{{ comment }}</p>
+                        {% endfor %}
+                    {% else %}
+                      <p></p>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  <!-- Display form errors if any -->
+  {% if form.errors %}
+    <div class="alert alert-danger" role="alert">
+      <strong>Error:</strong> Please correct the following errors.
+      <ul>
+        {% for field in form %}
+          {% if field.errors %}
+            {% for error in field.errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+{% endblock contents %}
+{% block javascript %}
+        <!-- JAVASCRIPT 
+        <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+        <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+        <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+        <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+
+        <script src="{% static 'js/app.js' %}"></script>
+
+        <script src="{% static 'libs/select2/js/select2.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-datepicker/js/bootstrap-datepicker.min.js' %}"></script>
+        <script src="{% static 'libs/spectrum-colorpicker2/spectrum.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-timepicker/js/bootstrap-timepicker.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-touchspin/jquery.bootstrap-touchspin.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-maxlength/bootstrap-maxlength.min.js' %}"></script>
+        <script src="{% static 'libs/@chenfengyuan/datepicker/datepicker.min.js' %}"></script>
+        <script src="{% static 'js/pages/form-advanced.init.js' %}"></script>
+
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

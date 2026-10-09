@@ -1,0 +1,70 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-body">
+                <h4 class="card-title mb-4">Update the Journal comment for claim: <span style="color: #34A56F">{{ repair_order }}</span></h4>
+                <form method="post" action="{% url 'claim:update-journal' journal_id=form.instance.id %}">
+                    {% csrf_token %}
+                    <div class="row mb-4 mt-5">
+                        <label class="col-form-label col-lg-2" for="line_id">Journal ID:</label>
+                        <div class="col-lg-10">
+                            <input id="journal_id" name="journal_id" value="{{ form.instance.id }}" class="form-control" disabled>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <label class="col-form-label col-lg-2" for="comment">Comment:</label>
+                        <div class="col-lg-10">
+                            <textarea id="comment" name="comment" class="form-control">{{ form.comment.value }}</textarea>
+                        </div>
+                    </div>
+                    <div class="row justify-content-end">
+                        <div class="col-lg-10">
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-info" type="submit">
+                                    Update Journal
+                                </button>
+
+                                <a href="{% url 'claim:delete-journal' journal_id=form.instance.id %}"
+                                class="btn btn-danger">
+                                    Delete Journal
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>    
+    </div>
+</div>
+        
+{% endblock contents %}
+{% block javascript %}
+          <!-- JAVASCRIPT 
+          <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+          <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+          <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+          <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+          <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+  
+          <script src="{% static 'js/app.js' %}"></script>
+  
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}
+  

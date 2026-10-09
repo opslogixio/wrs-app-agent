@@ -1,0 +1,855 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<div class="row">
+  <div class="col-lg-12">
+
+    <div class="card">
+      <div class="card-body">
+      {% csrf_token %}
+
+        <div class="row mb-3">
+          <div class="col-6">
+
+            <div class="row">
+              <div class="col-6">
+                <h1 class="card-title mb-3">Dealership Name - <span style="color: #34A56F">{{ dealership }}</span></h1>
+                <h1 class="card-title mb-3">Repair Order Number - <span style="color: #34A56F">{{ form.repair_order.value }}</span></h1>
+                <h1 class="card-title mb-4">Claim Tag - {% for tag in tags %}
+                  <span style="color: #34A56F">{{ tag.name }}</span>
+                                                          {% if not forloop.last %}, {% endif %}
+                                                        {% endfor %}</h1>
+              </div>
+              <div class="col-6">        
+                <a href="{% url 'claim:update-claim' dealership=dealership repair_order=form.repair_order.value %}" class="btn btn-outline-info">Edit Repair Order</a>                    
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-6">
+                <label for="id_rostatus" class="form-label">RO Status :</label>
+              </div>
+              <div class="col-6">
+                <label for="id_createdDate" class="form-label">Created Date :</label>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-6 mb-3">
+                <form action="{% url 'claim:ro-status' %}" method="post" enctype="multipart/form-data">
+                  {% csrf_token %}
+                  <input type="hidden" name="claim_id" id="claim_id" value="{{ claim_id }}" required>
+                  <select id="id_rostatus" name="ro_status" class="form-select">
+                  {% for choice in form.ro_status.field.choices %}
+                    <option value="{{ choice.0 }}" {% if choice.0 == claim.ro_status.id %}selected{% endif %}>{{ choice.1 }}</option>
+                  {% endfor %}
+                  </select>
+                  <div class="mt-2">
+                  <button class="btn btn-outline-info" type="submit" id="inputGroupFileAddon03">Submit</button>
+                  </div>
+                </form>
+              </div>
+              <div class="col-6 mb-3">
+                <label for="id_createdDate" class="form-label">{{ created_date }}</label>
+              </div>
+            </div>
+            <!--
+            <div class="row">
+              <div class="col-6">
+                <label for="id_serviceWriter" class="form-label">Service Writer :</label>
+              </div>
+              <div class="col-6">
+                <label for="id_rostatus" class="form-label">Technician :</label>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-6 mb-3">
+                <select id="id_serviceWriter" class="form-select">
+                  {% for value, label in form.fields.service_writer.choices %}
+                    <option value="{{ value }}">{{ label }}</option>
+                  {% endfor %}
+                </select>                    
+              </div>
+              <div class="col-6 mb-3">
+                <select id="id_technician" class="form-select">
+                  {% for value, label in form.fields.technician.choices %}
+                    <option value="{{ value }}">{{ label }}</option>
+                  {% endfor %}
+                </select> 
+              </div>
+            </div>
+          
+            <div class="row">
+              <div class="col-xs-4-5 mb-3">
+                <label style="padding-top: 10px;"> Comments :</label>
+              </div>
+              <form action="{% url 'claim:global-comment' %}" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+              <div class="input-group col-10 mb-3">
+                <input type="hidden" name="claim_id" id="claim_id" value="{{ claim_id }}" required>
+                <button class="btn btn-outline-info" type="submit" id="inputGroupFileAddon03">Submit</button>
+                <input type="text" class="form-control" name="comment" id="comment" placeholder="Input a global comment and then click 'Submit'.">
+              </div>
+              </form>
+            </div>
+            -->
+          </div>  
+          
+          <div class="col-6" style="background-color: #fefcff;" >
+            <div class="row">
+              <div class="col-12 mb-1">
+                <label for="id_pdf_content" class="form-label">PDF Files List :</label>
+              </div>
+              <div class="col-12 mb-3" >
+                {% for file in pdf_file %}
+                &nbsp;<a href="{{ file.pdf_file.url }}" target="_blank">{{ file.pdf_name }}</a></br>
+                {% endfor %}
+              </div>  
+            </div>
+            <div class="row mt-5">
+              <form action="{% url 'claim:upload-pdf' %}" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <label for="pdf_file">Upload PDF File:</label>
+                  <div class="input-group col-12 mt-3">
+                    <input type="hidden" name="claim_id" id="claim_id" value="{{ claim_id }}" required>
+                    <button class="btn btn-outline-info" type="submit" id="inputGroupFileAddon03">Upload</button>
+                    <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" class="form-control" required>
+                  </div>
+              </form>
+
+            </div>  
+              
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BEGIN CLAIM LINES -->
+ {% if messages %}
+  <div class="mb-3">
+      {% for message in messages %}
+          <div class="alert
+              {% if message.level_tag == 'error' %}
+                  alert-danger
+              {% elif message.level_tag == 'success' %}
+                  alert-success
+              {% elif message.level_tag == 'warning' %}
+                  alert-warning
+              {% elif message.level_tag == 'info' %}
+                  alert-info
+              {% else %}
+                  alert-secondary
+              {% endif %}
+              alert-dismissible fade show"
+              role="alert">
+
+              {{ message }}
+
+              <button type="button"
+                      class="btn-close"
+                      data-bs-dismiss="alert"
+                      aria-label="Close"></button>
+          </div>
+      {% endfor %}
+  </div>
+{% endif %}
+<div class="row">
+  <div class="col-lg-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="row mt-3">
+          <form action="{% url 'claim:add-line' %}" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+          <div class="col-2">
+            <input type="hidden" name="claim_id" value="{{ claim_id }}">
+            <input type="hidden" name="dealership" value="{{ dealership }}">
+          <button type="submit" class="btn btn-info">Add A new line</button>
+          </div>
+          </form>
+        </div>
+        <div class="row">
+          <div id="datepicker6" class="table-responsive mb-3 mt-3">
+            {% for line in line_table %}
+            <table class="table align-middle table-bordered" id="sample_editable_1" width="100%" cellspacing="0">
+              
+              <thead class="{% if line.claim_status.id == 1 %}table-light{% elif line.claim_status.id == 2 or line.claim_status.id == 4 %}table-success{% elif line.claim_status.id == 3 or line.claim_status.id == 6 %}table-danger{% elif line.claim_status.id == 5 %}table-info{% elif line.claim_status.id == 7 or line.claim_status.id == 8 %}table-warning{% else %}table-light{% endif %}">
+                
+                <tr>
+                  <th>Line</th>
+                  <th>Claim Type</th>
+                  <th>Claim Status</th>
+                  <th></th>
+                  <th>Comments</th>
+                  <th colspan="2">Actions</th>                 
+                  
+                  
+                </tr>
+              </thead>
+              
+              <tbody id="id_lineTable">
+                
+                <form
+                    action="{% url 'claim:line-updates' %}"
+                    id="line_form_{{ line.id }}"
+                    class="line-update-form"
+                    method="post"
+                    enctype="multipart/form-data"
+                >
+                {% csrf_token %}
+                <input type="hidden" name="line_id" value="{{ line.id }}">
+                <input type="hidden" id="hiddenInput.{{ line.id }}" name="hidden_input" value="">
+                <tr>
+                  <td class="col-lg-1" rowspan="3">
+                    <input style="border-color: #34A56F;" type="text" class="form-control" name="line_num" id="id_claimtotal_id" value="{{line.line_num}}">
+                  </td>
+                  <td class="col-lg-2">
+                    <select id="claim_type" name="claim_type" class="form-select"> 
+                      {% for value, label in form.fields.claim_type.choices %}
+                      
+                      <option value="{{ value }}" {% if value == line.claim_type.id %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td class="col-lg-2">
+                    <select
+                      id="claim_status_{{ line.id }}"
+                      name="claim_status"
+                      class="form-select claim-status"
+                      data-original-status="{{ line.claim_status.id }}"
+                  >
+                      {% for value, label in form.fields.claim_status.choices %}
+                          <option
+                              value="{{ value }}"
+                              data-status-name="{{ label|lower }}"
+                              {% if value == line.claim_status.id %}selected{% endif %}
+                          >
+                              {{ label }}
+                          </option>
+                      {% endfor %}
+                  </select>
+                  </td>
+                  <td class="col-lg-1">
+                    <input name="compliant" type="checkbox" class="form-check-input" id="id_compliant_id" {% if line.compliant %}checked{% endif %}>
+                  </td>
+                  <td class="col-lg-5" rowspan="3">
+                      <textarea
+                          id="comment_{{ line.id }}"
+                          cols="50"
+                          name="comment"
+                          class="form-control line-comment"
+                          placeholder="Enter a comment"
+                      ></textarea>
+
+                      <div class="invalid-feedback">
+                          A comment is required when the status is Not Submitted or Rejected.
+                      </div>
+
+                      <div class="form-text comment-requirement d-none">
+                          A comment is required for this status.
+                      </div>
+                  </td>
+                  <td rowspan="3">
+                    
+                    <button type="submit" class="btn btn-success">Save</button>
+                  </td>
+                  <td rowspan="3">
+                      <button type="submit"
+                              class="btn btn-danger"
+                              form="delete_form_{{ line.id }}">
+                          Delete
+                      </button>
+                  </td>
+                </tr>
+                <tr>
+                  <th class="col-lg-2 table-light">Claim Total</th>
+                  <th class="col-lg-2 table-light">Completion Date</th>
+                  <th class="col-lg-1 table-light">Discrepancy</th>
+                </tr>
+                <tr>
+                  <td class="col-lg-2">
+                    
+                    <input type="text" class="form-control" name="claim_total" id="id_claimtotal_id" value="{{ line.claim_total}}">
+
+                  </td>
+                  <td class="col-lg-2"> 
+                    <div class="input-daterange input-group" id="datepicker6" data-date-format="MM dd, yyyy" data-date-autoclose="true" data-provide="datepicker" data-date-container='#datepicker6' data-date-end-date="0d">
+                      <input type="text" class="form-control" name="start_date" id="start_date" value="{% if line.start_date %}{{ line.start_date|date:'F d, Y' }}{% endif %}" placeholder="Start Date"/>
+                    </div>
+                  </td>
+                  <td class="col-lg-1">
+                    <input type="checkbox" class="form-check-input" id="myCheckbox" onclick="redirectToUrl(this, '{% url 'claim:discrepancy' line_id=line.id %}');" {% if line.discrepancy %}checked{% endif %}>
+                  </td>
+                </tr>
+              </form>
+              <form method="post"
+                    id="delete_form_{{ line.id }}"
+                    action="{% url 'claim:delete-line' line_id=line.id %}"
+                    onsubmit="return confirm('Are you sure you want to delete line {{ line.line_num }}? This action cannot be undone.');">
+                  {% csrf_token %}
+              </form>
+              </tbody>
+              
+            </table>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- END CLAIM LINES -->
+
+<!-- BEGIN RECONCILIATION -->
+
+{% if discrepancy %}
+<div class="row">
+  <div class="col-lg-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="row">
+          <h1 class="card-title mb-3">Discrepancy Lines</h1>
+          <div class="table-responsive mb-3 mt-3">
+            <table class="table align-middle table-bordered" id="sample_editable_1" width="100%" cellspacing="0">
+              <thead>
+                  <tr>
+                      <th style="background-color:#EEEE">Line Number</th>
+                      <th style="background-color:#EEEE">Labor</th>
+                      <th style="background-color:#EEEE">Parts</th>
+                      <th style="background-color:#EEEE">Maintenance</th>
+                      <th style="background-color:#EEEE">Other</th>
+                      <th style="background-color:#EEEE">Core</th>
+                      <th style="background-color:#EEEE">Rental</th>
+                      <th style="background-color:#EEEE">Sublet</th>
+                      <th style="background-color:#EEEE">Total</th>
+                      <th style="background-color:#EEEE"></th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {% for disc in discrepancy %}
+                    {% if disc.discrepancy %}
+                      <tr>
+                          <td>{{ disc.line_num }}</td>       
+                              <td>$ {{ disc.discrepancy.labor }}</td>
+                              <td>$ {{ disc.discrepancy.parts }}</td>
+                              <td>$ {{ disc.discrepancy.maint }}</td>
+                              <td>$ {{ disc.discrepancy.other }}</td>
+                              <td>$ {{ disc.discrepancy.core }}</td>
+                              <td>$ {{ disc.discrepancy.rental }}</td>
+                              <td>$ {{ disc.discrepancy.sublet }}</td>
+                              <td>$ {{ disc.total_discrepancy }}</td>
+                              <td class="col-xs-1-2">
+                                <a href="{% url 'claim:update-discrepancy' disc.discrepancy.id disc.id %}" class="btn btn-outline-secondary">Edit</a>
+                              </td>
+                      </tr>
+                      {% endif %}
+                  {% endfor %}
+
+              </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif%}
+
+<!-- END RECONCILIATION -->
+
+<!-- BEGIN JOURNAL -->
+
+<div class="row">
+  <div class="col-lg-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="row">
+          <h1 class="card-title mb-3">Claim Journal</h1>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>       
+<div class="row">
+  <div class="col-lg-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="row">
+
+          {% for line_num, entries in journal_by_line.items %}
+            <div class="table-responsive mb-3 mt-3">
+
+              <h5 class="mb-2">
+                {% if line_num == 'Claim Comment' %}
+                  Claim Comment
+                {% else %}
+                  Line {{ line_num }}
+                {% endif %}
+              </h5>
+
+              <table class="table align-middle table-hover table-bordered"
+                     width="100%"
+                     cellspacing="0">
+
+                <thead>
+                  <tr>
+                    <th style="background-color:#EEEE">Line</th>
+                    <th style="background-color:#EEEE">Date Created</th>
+                    <th style="background-color:#EEEE">User</th>
+                    <th style="background-color:#EEEE">Comment</th>
+                    <th style="background-color:#EEEE"></th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {% for entry in entries %}
+                    <tr>
+                      <td class="col-lg-1">
+                        {% if entry.line and entry.line.line_num %}
+                          {{ entry.line.line_num }}
+                        {% else %}
+                          Claim
+                        {% endif %}
+                      </td>
+
+                      <td class="col-lg-2">
+                        {{ entry.created_date }}
+                      </td>
+
+                      <td class="col-lg-2">
+                        {{ entry.user.email }}
+                      </td>
+
+                      <td class="col-lg-6">
+                        {{ entry.comment }}
+                      </td>
+
+                      <td class="col-xs-1-2">
+                        <a href="{% url 'claim:update-journal' journal_id=entry.id %}"
+                           class="btn btn-outline-secondary">
+                          Edit
+                        </a>
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr>
+                      <td colspan="5" class="text-center">
+                        No journal entries found.
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+
+            </div>
+          {% empty %}
+            <div class="col-lg-12">
+              <p class="text-center">No journal entries found.</p>
+            </div>
+          {% endfor %}
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- END JOURNAL -->
+<!-- BEGIN AUDIT LOG -->
+<div class="row">
+  <div class="col-lg-12">
+
+    <div class="card">
+
+      <!-- Clickable Header -->
+      <div
+        class="card-body"
+        role="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#auditLogCollapse"
+        aria-expanded="false"
+        aria-controls="auditLogCollapse"
+      >
+        <div class="d-flex justify-content-between align-items-center">
+          <h1 class="card-title mb-0">Audit Log</h1>
+
+          <span class="text-muted">
+            Click to expand
+          </span>
+        </div>
+      </div>
+
+      <!-- Collapsible Audit Log -->
+      <div class="collapse" id="auditLogCollapse">
+
+        <div class="card-body border-top">
+
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+
+              <thead class="table-light">
+                <tr>
+                  <th>Time</th>
+                  <th>Type</th>
+                  <th>Action</th>
+                  <th>Actor</th>
+                  <th>Line</th>
+                  <th>Journal</th>
+                  <th>Target</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+
+              <tbody>
+
+                {% for e in audit_events %}
+                <tr>
+
+                  <td class="text-nowrap">
+                    {{ e.occurred_at|date:"Y-m-d H:i:s" }}
+                  </td>
+
+                  <td class="text-nowrap">
+                    {{ e.event_type }}
+                  </td>
+
+                  <td class="text-nowrap">
+                    {{ e.action }}
+                  </td>
+
+                  <td class="text-nowrap">
+                    {% if e.actor %}
+                      {{ e.actor.email }}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+
+                  <td class="text-nowrap">
+                    {% if e.line %}
+                      Line {{ e.line.line_num }}
+                    {% elif e.line_num %}
+                      Line {{ e.line_num }}
+                    {% elif e.line_id %}
+                      Line #{{ e.line_id }}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+
+                  <td style="max-width: 300px;">
+                    {% if e.journal %}
+                      {{ e.journal.comment|truncatechars:80 }}
+                    {% elif e.journal_id %}
+                      Journal #{{ e.journal_id }}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+
+                  <td class="text-nowrap">
+                    {% if e.content_type %}
+                      {{ e.content_type.app_label }}.{{ e.content_type.model }}:{{ e.object_id }}
+                    {% elif e.object_id %}
+                      {{ e.object_id }}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+
+                  <td style="max-width: 450px;">
+
+                    {% if e.message %}
+                      {{ e.message }}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+
+                    {% if e.changes_display %}
+                      <div class="small text-muted mt-1">
+                        <strong>Changes:</strong>
+
+                        <ul class="mb-0 ps-3">
+                          {% for change in e.changes_display %}
+                            <li>
+                              <strong>{{ change.field }}:</strong>
+
+                              <span class="text-danger">
+                                {{ change.old }}
+                              </span>
+
+                              →
+
+                              <span class="text-success">
+                                {{ change.new }}
+                              </span>
+                            </li>
+                          {% endfor %}
+                        </ul>
+
+                      </div>
+
+                    {% elif e.changes %}
+
+                      <div class="small text-muted mt-1">
+                        Changes: {{ e.changes|truncatechars:120 }}
+                      </div>
+
+                    {% endif %}
+
+                  </td>
+
+                </tr>
+
+                {% empty %}
+
+                <tr>
+                  <td
+                    colspan="8"
+                    class="text-center text-muted py-4"
+                  >
+                    No events found.
+                  </td>
+                </tr>
+
+                {% endfor %}
+
+              </tbody>
+
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+<!-- END AUDIT LOG -->
+  <!-- Display form errors if any -->
+  {% if form.errors %}
+    <div class="alert alert-danger" role="alert">
+      <strong>Error:</strong> Please correct the following errors.
+      <ul>
+        {% for field in form %}
+          {% if field.errors %}
+            {% for error in field.errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% endblock contents %}
+  {% block javascript %}
+          <!-- JAVASCRIPT 
+          <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+          <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+          <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+          <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+          <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+          <script src="{% static 'libs/bootstrap-datepicker/js/bootstrap-datepicker.min.js' %}"></script>
+          <script src="{% static 'libs/@chenfengyuan/datepicker/datepicker.min.js' %}"></script>
+
+         
+          <!-- form mask -->
+          <script src="{% static 'libs/inputmask/min/jquery.inputmask.bundle.min.js' %}"></script>
+  
+          <!-- form mask init -->
+          <script src="{% static 'js/pages/form-mask.init.js' %}"></script>
+          
+          <script src="{% static 'js/app.js' %}"></script>
+          
+  
+          <script type="text/javascript">
+              $(window).on('load', function() {
+                  $('#manualModal').modal('show');
+              });
+          </script>
+          <script>
+            function redirectToUrl(checkbox, url) {
+              if (checkbox.checked) {
+                window.location.href = url;
+              }
+            }
+          </script>
+          <script>
+          $('.datepicker6').datepicker({
+            placement: 'bottom'
+          });
+          </script>
+          <script>
+          document.addEventListener('DOMContentLoaded', function () {
+              const requiredCommentStatuses = [
+                  'not submitted',
+                  'rejected',
+                  'requires attention'
+              ];
+
+              function getSelectedStatusName(statusSelect) {
+                  const selectedOption =
+                      statusSelect.options[statusSelect.selectedIndex];
+
+                  return (
+                      selectedOption.dataset.statusName ||
+                      selectedOption.textContent ||
+                      ''
+                  ).trim().toLowerCase();
+              }
+
+              function statusHasChanged(statusSelect) {
+                  const originalStatus =
+                      String(statusSelect.dataset.originalStatus || '');
+
+                  const selectedStatus =
+                      String(statusSelect.value || '');
+
+                  return selectedStatus !== originalStatus;
+              }
+
+              function commentIsRequired(statusSelect) {
+                  const statusName = getSelectedStatusName(statusSelect);
+                  const changed = statusHasChanged(statusSelect);
+
+                  console.log('Original status:', statusSelect.dataset.originalStatus);
+                  console.log('Selected status:', statusSelect.value);
+                  console.log('Selected status name:', statusName);
+                  console.log('Status changed:', changed);
+
+                  return (
+                      changed &&
+                      requiredCommentStatuses.includes(statusName)
+                  );
+              }
+
+              function updateCommentRequirement(form) {
+                  const statusSelect =
+                      form.querySelector('.claim-status');
+
+                  const commentField =
+                      form.querySelector('.line-comment');
+
+                  const requirementMessage =
+                      form.querySelector('.comment-requirement');
+
+                  if (!statusSelect || !commentField) {
+                      return;
+                  }
+
+                  const isRequired =
+                      commentIsRequired(statusSelect);
+
+                  console.log('Comment required:', isRequired);
+
+                  commentField.required = isRequired;
+
+                  if (requirementMessage) {
+                      requirementMessage.classList.toggle(
+                          'd-none',
+                          !isRequired
+                      );
+                  }
+
+                  if (!isRequired) {
+                      commentField.classList.remove('is-invalid');
+                  }
+              }
+
+              document
+                  .querySelectorAll('.line-update-form')
+                  .forEach(function (form) {
+
+                      const statusSelect =
+                          form.querySelector('.claim-status');
+
+                      const commentField =
+                          form.querySelector('.line-comment');
+
+                      if (!statusSelect || !commentField) {
+                          console.error(
+                              'Missing status or comment field:',
+                              form
+                          );
+                          return;
+                      }
+
+                      // Evaluate the state when the page first loads.
+                      updateCommentRequirement(form);
+
+                      // Re-evaluate whenever the status changes.
+                      statusSelect.addEventListener(
+                          'change',
+                          function () {
+
+                              updateCommentRequirement(form);
+
+                              if (commentIsRequired(statusSelect)) {
+                                  commentField.focus();
+                              }
+                          }
+                      );
+
+                      // Remove the invalid styling once a comment is entered.
+                      commentField.addEventListener(
+                          'input',
+                          function () {
+
+                              if (commentField.value.trim()) {
+                                  commentField.classList.remove(
+                                      'is-invalid'
+                                  );
+                              }
+                          }
+                      );
+
+                      // Final validation before submitting.
+                      form.addEventListener(
+                          'submit',
+                          function (event) {
+
+                              updateCommentRequirement(form);
+
+                              if (
+                                  commentIsRequired(statusSelect) &&
+                                  !commentField.value.trim()
+                              ) {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+
+                                  commentField.classList.add(
+                                      'is-invalid'
+                                  );
+
+                                  commentField.focus();
+
+                                  commentField.scrollIntoView({
+                                      behavior: 'smooth',
+                                      block: 'center'
+                                  });
+                              }
+                          }
+                      );
+                  });
+          });
+          </script>
+
+  {% endblock javascript %}
+  {% block r_sidebar %}
+  {% include 'partials/rightsidebar.html' %}
+  {% endblock r_sidebar %}
+  {% block footer %}
+  {% include 'partials/footer.html' %}
+  {% endblock %}

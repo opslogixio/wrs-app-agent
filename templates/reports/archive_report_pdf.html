@@ -1,0 +1,103 @@
+{% load static %}
+{% static "" as baseUrl %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Report</title>
+    <style>
+        @page {
+            size: portrait;
+            margin: 10px;
+        }
+        /* Define table styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        th, td {
+            border: 1px solid #000; /* Add borders to table cells */
+            padding: 3px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        /* Set the "Comments" cell to have a larger width */
+        td.comments-cell {
+            width: 60%; /* You can adjust the width as needed */
+            word-break: break-word; /* Allow long content to wrap */
+            padding: 0px;
+            margin-left: 3px;
+        }
+        td.line-cell {
+            width: 5%; /* You can adjust the width as needed */
+            word-break: break-word; /* Allow long content to wrap */
+        }
+        /* Define styles for the table header */
+        th {
+            background-color: #f2f2f2;
+        }
+        .container {
+            margin-bottom: 30px;
+        }
+        h1, img {
+            display: inline-block; /* Set to inline-block to place them on the same line */
+            vertical-align: middle; /* Vertically align them in the middle */
+        }
+        
+        /* Add margin or padding for spacing */
+        img.logo {
+            margin-left: 30px; /* Adjust the margin as needed */
+        }
+    </style>
+</head>
+<body>
+   
+    <div class="container">
+        <h1>{{ report_type }} for {{ dealership }} - Report Date: {{ start_date }} - {{ end_date }}</h1>
+        <img class="logo" src="https://portal.warrantyrevenue.com/static/images/report-web.png" alt="Report Logo" height="50" align="right">
+    </div>
+
+    {% if message %}
+        <p>{{ message }}</p>
+    {% else %}
+
+    {% for claim in report %}
+    <h1>Repair Order: {{ claim.repair_order }}</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Line</th>
+                <th>Total</th>
+                <th>Claim Status</th>
+                <th>RO Status</th>
+                <th>Comments</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in claim.lines %}
+            <tr style="{% if line.claim_status.id == 7 %}background-color: #ffffcc;{% elif line.claim_status.id == 5 %}background-color: #D6EAF8;{% elif line.claim_status.id == 6 or line.claim_status.id == 3 %}background-color: #F2D7D5;{% endif %}">
+                <td class="line-cell">{{ line.line_num }}</td>
+                <td>${{ line.claim_total }}</td>
+                <td>{{ line.claim_status }}</td>
+                <td>{{ claim.ro_status }}</td>
+                <td class="comments-cell">
+                    {% if line.comments %}
+                        {% for comment in line.comments %}
+                            <p>{{ comment }}</p>
+                        {% endfor %}
+                    {% else %}
+                        <p></p>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endfor %}
+    
+    {% endif %}
+    <center><h4>Provided by Warranty Lens</h4></center>
+</body>
+</html>

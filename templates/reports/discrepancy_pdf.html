@@ -1,0 +1,105 @@
+{% load static %}
+{% static "" as baseUrl %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Report</title>
+    <style>
+        @page {
+            size: portrait;
+            margin: 10px;
+        }
+        /* Define table styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        th, td {
+            border: 1px solid #000; /* Add borders to table cells */
+            padding: 3px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        /* Set the "Comments" cell to have a larger width */
+        td.comments-cell {
+            width: 60%; /* You can adjust the width as needed */
+            word-break: break-all; /* Allow long content to wrap */
+            padding: 0px;
+            margin-left: 3px;
+        }
+        td.line-cell {
+            width: 5%; /* You can adjust the width as needed */
+            word-break: break-all; /* Allow long content to wrap */
+        }
+        /* Define styles for the table header */
+        th {
+            background-color: #f2f2f2;
+        }
+        .container {
+            margin-bottom: 30px;
+        }
+        h1, img {
+            display: inline-block; /* Set to inline-block to place them on the same line */
+            vertical-align: middle; /* Vertically align them in the middle */
+        }
+        
+        /* Add margin or padding for spacing */
+        img.logo {
+            margin-left: 30px; /* Adjust the margin as needed */
+        }
+    </style>
+</head>
+<body>
+   
+    
+    <div class="container">
+        <h1>Reconciliation Report for {{ dealership }} - Report Date: {{ start_date }} - {{ end_date}}</h1>
+        <img class="logo" src="https://portal.warrantyrevenue.com/static/images/report-web.png" alt="" height="50" align="right">
+    </div>
+ 
+        {% if message %}
+          <p>{{ message }}</p>
+        {% else %}
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Repair Order</th>
+                        <th>Line Number</th>
+                        <th>Labor</th>
+                        <th>Parts</th>
+                        <th>Maint</th>
+                        <th>Other</th>
+                        <th>Core</th>
+                        <th>Rental</th>
+                        <th>Sublet</th>
+                        <th>Total</th> <!-- This is the total for each line -->
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in report %}
+                    <tr>
+                        <td>{{ line.claim.repair_order }}</td>
+                        <td>{{ line.line_num }}</td>
+                        <td>{{ line.discrepancy.labor }}</td>
+                        <td>{{ line.discrepancy.parts }}</td>
+                        <td>{{ line.discrepancy.maint }}</td>
+                        <td>{{ line.discrepancy.other }}</td>
+                        <td>{{ line.discrepancy.core }}</td>
+                        <td>{{ line.discrepancy.rental }}</td>
+                        <td>{{ line.discrepancy.sublet }}</td>
+                        <td>{{ line.total_discrepancy }}</td> <!-- Display the calculated total -->
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+                    
+          </div>
+        </div>
+        {% endif %}
+  
+    <center><h4> Provided by Warranty Lens</h4></center>
+</html>

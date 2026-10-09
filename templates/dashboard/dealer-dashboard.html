@@ -1,0 +1,390 @@
+<!-- dealer-dashboard.html -->
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+
+
+<div class="row">
+    <div class="col-lg-12 mt-3">
+            {% for data in dashboard_items %}
+                <h4><span style="color: #34A56F">{{ data.dealership }}</span> Dashboard</h4>
+             
+        <div class="card mt-3">
+            <div class="card-body">
+              <div class="row">
+                <div class="col-6">
+                    <div class="row">
+                        <div class="col-12">
+                            <h1 class="card-title">
+                                Repair Order Search:
+                            </h1>
+                        </div>
+                    </div>
+                    <div class="row mt-2" >
+                        <div class="col-12">
+                            <form class="row row-cols-lg-auto g-3 align-items-center" method="get" action="{% url 'claim:search-ro' %}">
+                                <input type="hidden" name="dealership_id" value="{{ data.dealership_id }}">
+                                <input class="form-control" type="text" name="repair_order" value="" required>
+                                <button class="btn btn-outline-success w-md" type="submit">Search</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="row">
+                        <div class="col-12">
+                            <h1 class="card-title">
+                                Quick Links:
+                            </h1>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            <a href="{% url 'claim:claim-form' dealership_id=data.dealership_id %}" class="btn btn-outline-success me-3" role="button">Add a Claim</a>
+                            <a href="{% url 'reports:reports' dealership_id=data.dealership_id %}" class="btn btn-outline-success me-3" role="button">Reports</a>
+                        </div>
+                    </div>
+                    {% endfor %} 
+                </div>
+              </div>
+
+            </div>
+        </div>
+        <div>
+            <!-- Total Paid claims -->
+        </div>
+
+    </div>
+    
+</div>
+
+<div class="row">
+    <div class="col-lg-4">
+      <div class="card overflow-hidden">
+        <div class="row">
+            <div class="card">
+                <div class="card-body">
+                 <div class="row">
+                    {% for data in dashboard_items %}
+                   <div class="col-sm-6">
+                    
+                        <h4 class="card-title mb-4">Month to Date Revenue</h4>
+                        <h3 id="id_paid1" style="color: #34A56F">${{ data.paid_claims_monthly_total }}</h3>
+                        <h4 class="card-title mb-4" style="padding-top:10%">Year to Date Revenue</h4>
+                        <h3 id="id_paid2" style="color: #34A56F">${{ data.paid_claims_yearly_total }}</h3>
+                        
+                   </div>
+                   
+                   <div class="col-sm-6">
+                   
+                   
+                   
+                        <h4 class="card-title mb-4">
+                            In Process Revenue
+                        </h4>
+                        <h3 style="color: #34A56F">${{ data.in_queue_total }}</h3>
+                        
+                        
+                   </div>
+                   {% endfor %}
+                 </div>
+                </div>
+            </div>
+        </div><!--End row-->
+      </div>
+    </div><!--End Col-xl-5-->
+
+    <div class="col-xl-8">
+        <div class="row">
+            {% for data in dashboard_items %}
+            <div class="col-xl-4 col-md-4">
+                <a href="{% url 'claim:new-claim-queue' filter_request='New' %}?dealership_id={{data.dealership_id}}">
+                <div class="card mb-4 mini-stats-wid">
+                    <div class="card-body d-flex" >
+                        <div class="flex-grow-1">
+                            <h5 class="text-muted fw-medium">New</h5>
+                            <h5 class="text-muted fw-medium">{{ agg_new_claims_count }}</h5>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="text-muted fw-medium"></h5>
+                            
+                        </div>    
+                        <div class="flex-shrink-0 align-self-center">
+                            
+                                
+                                <i class="bx bx-copy-alt display-5" style="color: #34A56F">
+                                </i>
+                                
+                            
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex align-items-center justify-content-between" id="id_new0">
+                      <h4 class="text-black" id="id_pending1"></h4>
+                    </div>
+                </div>
+                </a>
+            </div>
+            <div class="col-xl-4 col-md-4">
+                <a href="{% url 'claim:pending-claim-queue' filter_request='Pending' %}?dealership_id={{data.dealership_id}}">
+                <div class="card mb-4 mini-stats-wid">
+                    <div class="card-body d-flex" >
+                        <div class="flex-grow-1">
+                            <h5 class="text-muted fw-medium">Pending</h5>
+                            <h5 class="text-muted fw-medium">{{ agg_pending_claims_count }}</h5>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="text-muted fw-medium">${{ agg_pending_claims_total }}</h5>
+                            
+                        </div>   
+                        <div class="flex-shrink-0 align-self-center">
+                            
+                                <i class="bx bx-layer display-5" style="color: #34A56F">
+                                </i>
+                                
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex align-items-center justify-content-between">
+                        <div class="text-black" id="id_pending0"></div>
+                        <div class="text-black" id="id_pending1"></div>
+                    </div>
+                </div>
+                </a>
+            </div>
+            <div class="col-xl-4 col-md-4">
+                <a href="{% url 'claim:ra-claim-queue' filter_request='Requires Attention' %}?dealership_id={{data.dealership_id}}">
+                <div class="card mb-4 mini-stats-wid">
+                    <div class="card-body d-flex" >
+                        <div class="flex-grow-1">
+                            <h5 class="text-muted fw-medium">Requires Attention</h5>
+                            <h5 class="text-muted fw-medium">{{ agg_requires_attention_claims_count }}</h5>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="text-muted fw-medium">${{ agg_requires_attention_total }}</h5>
+                            
+                        </div>   
+                        <div class="flex-shrink-0 align-self-center">
+                            
+                                <i class="bx bx-error display-5" style="color: #34A56F">
+                                </i>
+                                
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex align-items-center justify-content-between">
+                        <div class="text-black" id="id_requires_attention0"></div>
+                        <div class="text-black" id="id_requires_attention1"></div>
+                    </div>
+                </div>
+                </a>
+            </div>
+            
+        </div>
+
+        <div class="row">
+            <div class="col-xl-4 col-md-4">
+                <a href="{% url 'claim:rework-claim-queue' filter_request='Rework' %}?dealership_id={{data.dealership_id}}">
+                <div class="card mb-4 mini-stats-wid">
+                    <div class="card-body d-flex" >
+                        <div class="flex-grow-1">
+                            <h5 class="text-muted fw-medium">Rework</h5>
+                            <h5 class="text-muted fw-medium">{{ agg_rework_claims_count }}</h5>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="text-muted fw-medium">${{ agg_rework_totals }}</h5>
+                            
+                        </div> 
+                        <div class="flex-shrink-0 align-self-center">
+                            
+                                <i class="bx bx-history display-5" style="color: #34A56F">
+                                </i>
+                                
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex align-items-center justify-content-between" id="id_openRO0">
+                    </div>
+                </div>
+                </a>
+            </div>
+            
+            
+            
+            <div class="col-xl-4 col-md-4">
+                <a href="{% url 'reports:open-reports-view' dealership_id=data.dealership_id %}">
+                <div class="card mb-4 mini-stats-wid">
+                    <div class="card-body d-flex" >
+                        <div class="flex-grow-1">
+                            <h5 class="text-muted fw-medium">Open/Completed</h5>
+                            <h5 class="text-muted fw-medium">{{ data.open_ro_count }}</h5>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="text-muted fw-medium">{{ data.open_ro_total }}</h5>
+                            
+                        </div>   
+                        <div class="flex-shrink-0 align-self-center">
+                            
+                                <i class="bx bx-task display-5" style="color: #34A56F">
+                                </i>
+                                
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex align-items-center justify-content-between">
+                        <div class="text-black"></div>
+                        <div class="text-black"></div>
+                    </div>
+                </div>
+                </a>
+            </div>
+            
+            <div class="col-xl-4 col-md-4">
+                <a href="{% url 'claim:ra-claim-queue' filter_request='Aging' %}?dealership_id={{data.dealership_id}}">
+                <div class="card mb-4 mini-stats-wid" >
+                    <div class="card-body d-flex" >
+                        <div class="flex-grow-1">
+                            <h5 id='id_Risk_Date' class="text-muted fw-medium">Aging Claims</h5>
+                            <h5 class="text-muted fw-medium">{{ agg_requires_attention_expire_count }}</h5>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="text-muted fw-medium">${{ agg_requires_attention_expire_total }}</h5>
+                            
+                        </div>   
+                        <div class="flex-shrink-0 align-self-center">
+                            
+                                <i class="bx bx-timer display-5" style="color: #34A56F">
+                                </i>
+                                
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex align-items-center justify-content-between" id="id_At_Risk_div">
+                        <div class="text-white" id="id_At_Risk0"></div>
+                        <div class="text-white" id="id_At_Risk1"></div>
+                    </div>
+                </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-body">
+                <h4 class="card-title mb-4 text-center">Monthly Revenue by Claim Type </h4>
+                <div id="column_chart" class="apex-charts" dir="ltr"></div>
+            </div>
+        </div><!--end card-->
+    </div>
+</div>
+
+
+
+{% endblock contents %}
+{% block javascript %}
+        <!-- JAVASCRIPT
+        <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+        <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+        <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+        <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+        <!-- form mask -->
+        <script src="{% static 'libs/inputmask/min/jquery.inputmask.bundle.min.js' %}"></script>
+
+        <!-- form mask init -->
+        <script src="{% static 'js/pages/form-mask.init.js' %}"></script>
+        <script src="{% static 'libs/apexcharts/apexcharts.min.js' %}"></script>
+        <script src="{% static 'js/pages/wrs-charts.js' %}"></script>
+        
+        <script src="{% static 'js/app.js' %}"></script>
+
+        <script type="text/javascript">
+            $(window).on('load', function() {
+                $('#manualModal').modal('show');
+            });
+        </script>
+        {% for data in dashboard_items %}      
+
+        <script>
+            // Function to make an AJAX request
+            function fetchData(dealershipId) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', `https://portal.warrantyrevenue.com/dashboard/get-charts-data/${dealershipId}/`, true);
+        
+                xhr.onload = function () {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        var responseData = JSON.parse(xhr.responseText);
+        
+                        // Update ApexCharts series data with the fetched data
+                        updateApexCharts(responseData);
+                    } else {
+                        console.error('Failed to fetch data:', xhr.statusText);
+                    }
+                };
+        
+                xhr.onerror = function () {
+                    console.error('Network error occurred');
+                };
+        
+                xhr.send();
+            }
+            
+            // Function to format numbers with commas
+            function formatNumberWithCommas(number) {
+                return number.toLocaleString();
+            }
+
+            // Function to update ApexCharts series data
+            function updateApexCharts(data) {
+                // Check if data.series exists and is an array
+                if (data && Array.isArray(data.series)) {
+                    // Access the ApexCharts instance and update the series data
+                    if (typeof chart !== 'undefined' && typeof chart.updateOptions === 'function') {
+
+                        // Format numbers with commas
+                        data.series.forEach(function (seriesItem) {
+                            seriesItem.data = seriesItem.data.map(formatNumberWithCommas);
+                        });
+
+                        // Replace the existing series with the new data
+                        chart.updateOptions({
+                            series: data.series
+                        });
+                    } else {
+                        console.error('ApexCharts instance or updateOptions is not defined');
+                    }
+                } else {
+                    console.error('Invalid data format:', data);
+                }
+            }
+
+        
+            // Ensure the chart is initialized before fetching and updating data
+            
+                // Call the fetchData function with the desired dealershipId
+                var dealershipId = {{ data.dealership_id }};
+                fetchData(dealershipId);
+ 
+        
+        </script>
+        
+
+         
+        {% endfor %}
+
+
+
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

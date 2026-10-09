@@ -1,0 +1,65 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<!-- THIS IS NOT IN USE -->
+
+<form method="post" action="{% url 'claim:update-claim-line' line_id=line_id %}">
+    {% csrf_token %}
+    
+    <!-- Display the line fields -->
+    <h3>Line</h3>
+    <div class="form-group">
+      <label for="id_line_num">Line Number:</label>
+      <input type="text" class="form-control" name="line_num" id="id_line_num" value="{{ object.line_num }}">
+    </div>
+    <!-- Add more line fields here -->
+    
+    <!-- Display the discrepancy fields IF THERE IS A DISCREPANCY-->
+    
+    <h3>Discrepancy</h3>
+    <div class="form-group">
+      <label for="id_labor">Labor:</label>
+      <input type="number" step="0.01" class="form-control" name="labor" id="id_labor" value="{{ discrepancy.labor }}">
+    </div>
+    <div class="form-group">
+      <label for="id_parts">Parts:</label>
+      <input type="number" step="0.01" class="form-control" name="parts" id="id_parts" value="{{ discrepancy.parts }}">
+    </div>
+    <div class="form-group">
+      <label for="id_maint">Maintenance:</label>
+      <input type="number" step="0.01" class="form-control" name="maint" id="id_maint" value="{{ discrepancy.maint }}">
+    </div>
+    <div class="form-group">
+      <label for="id_other">Other:</label>
+      <input type="number" step="0.01" class="form-control" name="other" id="id_other" value="{{ discrepancy.other }}">
+    </div>
+    
+    <button type="submit" class="btn btn-primary">Save</button>
+  </form>
+  
+{% endblock contents %}
+{% block javascript %}
+          <!-- JAVASCRIPT 
+          <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+          <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+          <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+          <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+          <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+  
+          <script src="{% static 'js/app.js' %}"></script>
+  
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

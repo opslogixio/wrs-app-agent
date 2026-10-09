@@ -1,0 +1,79 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+{% load humanize %}
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<h1>Historical Line Tables</h1>
+<form method="post">
+  {% csrf_token %}
+  {{ formset.management_form }}
+  <table class="table table-hover table-bordered table-sort table-arrows">
+    <thead>
+      <tr>
+        <th>Claim</th>
+        <th>Line Number</th>
+        <th>Claim Type</th>
+        <th>Total</th>
+        <th>Claim Status</th>
+        <th>Start Date</th>
+        <th>Paid Date</th>
+        <th>Compliant</th>
+        <th>Discrepancy</th>
+        <th>Delete?</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for form in formset %}
+        <tr>
+          <td>{{ form.claim }}</td>
+          <td>{{ form.line_num }}</td>
+          <td>{{ form.claim_type }}</td>
+          <td>{{ form.claim_total }}</td>
+          <td>{{ form.claim_status }}</td>
+          <td>{{ form.start_date }}</td>
+          <td>{{ form.paid_date }}</td>
+          <td>{{ form.compliant }}</td>
+          <td>{{ form.discrepancy }}</td>
+          <td><input type="checkbox" name="{{ form.DELETE.name }}" id="{{ form.DELETE.id_for_label }}"> Delete</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <button type="submit">Save Changes</button>
+</form>
+
+{% endblock contents %}
+{% block javascript %}
+        <!-- JAVASCRIPT 
+        <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+        <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+        <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+        <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+        <!-- form mask -->
+        <script src="{% static 'libs/inputmask/min/jquery.inputmask.bundle.min.js' %}"></script>
+
+        <!-- form mask init -->
+        <script src="{% static 'js/pages/form-mask.init.js' %}"></script>
+        
+        <script src="{% static 'js/app.js' %}"></script>
+
+        <script type="text/javascript">
+            $(window).on('load', function() {
+                $('#manualModal').modal('show');
+            });
+        </script>
+
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

@@ -1,0 +1,63 @@
+<!-- user-dashboard.html -->
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+
+
+<div class="row">
+    <div class="col-lg-12">
+        <h4>Welcome <span style="color: #34A56F">{{ user.first_name }}</span>, to your Dashboard</h4>
+        <div class="card">
+            <div class="card-body">
+              <h1 class="card-title">
+              Discover items
+              </h1>
+              <p class="card-title-desc">
+                Here you will stuff
+              </p>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+<!-- end row -->
+
+
+{% endblock contents %}
+{% block javascript %}
+        <!-- JAVASCRIPT 
+        <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+        <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+        <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+        <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+        <!-- form mask -->
+        <script src="{% static 'libs/inputmask/min/jquery.inputmask.bundle.min.js' %}"></script>
+
+        <!-- form mask init -->
+        <script src="{% static 'js/pages/form-mask.init.js' %}"></script>
+        
+        <script src="{% static 'js/app.js' %}"></script>
+
+        <script type="text/javascript">
+            $(window).on('load', function() {
+                $('#manualModal').modal('show');
+            });
+        </script>
+
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<div class="container-fluid mt-4">
+    <h4>Global Search</h4>
+
+    {% if query %}
+        <p>Results for repair order: <strong>{{ query }}</strong></p>
+
+        {% if claims %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Repair Order</th>
+                            <th>Dealership</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Modified</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for claim in claims %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'claim:claim-update' pk=claim.id dealership_id=claim.dealership.id %}">
+                                        {{ claim.repair_order }}
+                                    </a>
+                                </td>
+                                <td>{{ claim.dealership }}</td>
+                                <td>{{ claim.ro_status }}</td>
+                                <td>{{ claim.created_date }}</td>
+                                <td>{{ claim.modified_date }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-warning">
+                No claims found for repair order {{ query }}.
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-info">
+            Enter a repair order number to search.
+        </div>
+    {% endif %}
+</div>
+{% endblock contents %}
+{% block javascript %}
+        <!-- JAVASCRIPT 
+        <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+        <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+        <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+        <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+        <!-- form mask -->
+        <script src="{% static 'libs/inputmask/min/jquery.inputmask.bundle.min.js' %}"></script>
+
+        <!-- form mask init -->
+        <script src="{% static 'js/pages/form-mask.init.js' %}"></script>
+        
+        <script src="{% static 'js/app.js' %}"></script>
+
+        <script type="text/javascript">
+            $(window).on('load', function() {
+                $('#manualModal').modal('show');
+            });
+        </script>
+
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

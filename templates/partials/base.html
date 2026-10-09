@@ -1,0 +1,134 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta content="Warranty Solutions" name="description" />
+    <meta content="Warranty Revenue Services" name="author" />
+
+    <title>{{heading}} | Warranty Revenue Services LLC.</title>
+
+            <!-- TinyMCE CDN -->
+            <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+        
+            <script>
+              tinymce.init({
+                selector: 'textarea#id_status{{l.id}}',
+              });
+            </script>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+            <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+          
+
+    <!-- App favicon -->
+    <link rel="shortcut icon" href="{% static 'images/wrs-icon.png' %}">
+
+
+    
+    
+
+    {% block extra_css %}
+    {% endblock extra_css %}
+    {%block css %}
+    {%endblock css%}
+
+</head>
+
+
+<body data-sidebar="dark" data-topbar="dark">
+{% block header %}
+{% include 'partials/header.html' %}
+{% endblock header %}
+{% block sidebar %}
+{% include 'partials/sidebar.html' %}
+{% endblock sidebar %}
+{% comment %} {% block header %}
+{% include 'partials/hori-header.html' %}
+{% endblock %}
+{% block sidebar %}
+{% include 'partials/hori-sidebar.html' %}
+{% endblock %} {% endcomment %}
+    <!-- ============================================================== -->
+    <!-- Start right Content here -->
+    <!-- ============================================================== -->
+    <div class="main-content">
+        <div class="page-content">
+            <div class="container-fluid">
+                <!-- start page title -->
+                <!--div class="row">
+                    <div class="col-12">
+                        <div class="page-title-box d-sm-flex align-items-center justify-content-between">
+                            <h4 class="mb-sm-0 font-size-18">{{heading}}</h4>
+
+                            <div class="page-title-right">
+                                <ol class="breadcrumb m-0">
+                                    <li class="breadcrumb-item"><a href="javascript: void(0);">{{pageview}}</a></li>
+                                    <li class="breadcrumb-item active">{{heading}}</li>
+                                </ol>
+                            </div>
+
+                        </div>
+                    </div>
+                </div-->
+                <!-- end page title -->
+                {% block contents %}
+                {% endblock contents %}
+            </div>
+            <!-- end modal -->
+        </div>
+        <!-- end main content-->
+    </div>
+    <!-- END layout-wrapper -->
+    {% block Subscribe %}
+    {% endblock %}
+    {% block r_sidebar %}
+    {% endblock %}
+    {% block footer %}
+    {% endblock %}
+    {% block javascript %}
+    {% endblock %}
+
+{% if is_paginated %}
+
+<nav aria-label="Page navigation example">
+  <ul class="pagination justify-content-end et">
+    {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&p={{ p }}&row={{ row }}&q={{ q }}">&laquo;</a></li>
+    {% else %}
+      <li class="page-item"><a class="page-link">Prev</a></li>
+    {% endif %}
+    {% if '/ ' in request.path %}
+        {% for i in paginator.page_range %}
+          {% if page_obj.number == i %}
+       <li class="page-item active"><a class="page-link active" href="?page={{ i  }}&p={{ p }}&row={{ row }}&q={{ q }}">{{ i }}</a></li>
+      {% else %}
+    <li class="page-item"><a class="page-link" href="?page={{ i  }}&p={{ p }}&row={{ row }}&q={{ q }}">{{ i }}</a></li>
+      {% endif %}
+    {% endfor %}
+
+    {% else%}
+
+    {% for i in paginator.page_range %}
+          {% if page_obj.number == i %}
+       <li class="page-item active"><a class="page-link active" href="?page={{ i  }}&q={{ q }}">{{ i }}</a></li>
+      {% else %}
+    <li class="page-item"><a class="page-link" href="?page={{ i  }}&q={{ q }}">{{ i }}</a></li>
+      {% endif %}
+    {% endfor %}
+
+    {% endif %}
+     {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&p={{ p }}&row={{ row }}&q={{ q }}">&raquo;</a></li>
+    {% else %}
+      <li class="page-item"><a class="page-link">Next</a></li> 
+      {% endif %}
+  </ul>
+</nav>
+{% endif %}
+
+</body>
+</html>

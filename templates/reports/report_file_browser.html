@@ -1,0 +1,150 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="invoice-title">
+                    
+                    <div class="mb-4">
+                        <h4>Welcome to the daily reports page</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="container my-4">
+            <div class="accordion" id="dealershipAccordion">
+                {% for dealership in folder_structure %}
+                    {% with d_index=forloop.counter0 %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading-d{{ d_index }}">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#collapse-d{{ d_index }}" aria-expanded="false"
+                                    aria-controls="collapse-d{{ d_index }}">
+                                {{ dealership.dealership }}
+                            </button>
+                        </h2>
+                        <div id="collapse-d{{ d_index }}" class="accordion-collapse collapse"
+                            aria-labelledby="heading-d{{ d_index }}" data-bs-parent="#dealershipAccordion">
+                            <div class="accordion-body">
+
+                                <div class="accordion" id="yearAccordion-d{{ d_index }}">
+                                    {% for year in dealership.years %}
+                                        {% with y_index=forloop.counter0 %}
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="heading-d{{ d_index }}-y{{ y_index }}">
+                                                <button class="accordion-button collapsed" type="button"
+                                                        data-bs-toggle="collapse"
+                                                        data-bs-target="#collapse-d{{ d_index }}-y{{ y_index }}"
+                                                        aria-expanded="false"
+                                                        aria-controls="collapse-d{{ d_index }}-y{{ y_index }}">
+                                                    {{ year.year }}
+                                                </button>
+                                            </h2>
+                                            <div id="collapse-d{{ d_index }}-y{{ y_index }}" class="accordion-collapse collapse"
+                                                aria-labelledby="heading-d{{ d_index }}-y{{ y_index }}"
+                                                data-bs-parent="#yearAccordion-d{{ d_index }}">
+                                                <div class="accordion-body">
+
+                                                    <div class="accordion" id="monthAccordion-d{{ d_index }}-y{{ y_index }}">
+                                                        {% for month in year.months %}
+                                                            {% with m_index=forloop.counter0 %}
+                                                            <div class="accordion-item">
+                                                                <h2 class="accordion-header"
+                                                                    id="heading-d{{ d_index }}-y{{ y_index }}-m{{ m_index }}">
+                                                                    <button class="accordion-button collapsed" type="button"
+                                                                            data-bs-toggle="collapse"
+                                                                            data-bs-target="#collapse-d{{ d_index }}-y{{ y_index }}-m{{ m_index }}"
+                                                                            aria-expanded="false"
+                                                                            aria-controls="collapse-d{{ d_index }}-y{{ y_index }}-m{{ m_index }}">
+                                                                        {{ month.month }}
+                                                                    </button>
+                                                                </h2>
+                                                                <div id="collapse-d{{ d_index }}-y{{ y_index }}-m{{ m_index }}"
+                                                                    class="accordion-collapse collapse"
+                                                                    aria-labelledby="heading-d{{ d_index }}-y{{ y_index }}-m{{ m_index }}"
+                                                                    data-bs-parent="#monthAccordion-d{{ d_index }}-y{{ y_index }}">
+                                                                    <div class="accordion-body">
+                                                                        {% for day in month.days %}
+                                                                        <strong>{{ day.day }}</strong>
+                                                                            <ul class="list-group list-group-flush mb-1">
+                                                                                {% for file in day.files %}
+                                                                                    <li class="list-group-item">
+                                                                                        <a href="{% static day.path|add:file %}" target="_blank">
+                                                                                            {{ file }}
+                                                                                        </a>
+                                                                                    </li>
+                                                                                {% endfor %}
+                                                                            </ul>
+                                                                        {% endfor %}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            {% endwith %}
+                                                        {% endfor %}
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endwith %}
+                                    {% endfor %}
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                    {% endwith %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock contents %}
+{% block javascript %}
+        <!-- JAVASCRIPT -->
+        <style>
+            .folder-toggle {
+                cursor: pointer;
+                font-weight: bold;
+                color: #007bff;
+            }
+            .nested {
+                margin-left: 20px;
+                display: none;
+            }
+        </style>
+
+        <script>
+            function toggleVisibility(id) {
+                const el = document.getElementById(id);
+                if (el.style.display === 'none') {
+                    el.style.display = 'block';
+                } else {
+                    el.style.display = 'none';
+                }
+            }
+        </script>
+
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

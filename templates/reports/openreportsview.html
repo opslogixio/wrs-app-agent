@@ -1,0 +1,221 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<div class="row">
+  <div class="col-lg-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="invoice-title">
+          <div class="mb-4">
+            <h4>Dealership: <span style="color: #34A56F">{{ dealership }}</span></h4>
+            <h4>Report Type: <span style="color: #34A56F">{{ report_type }}</span></h4>
+          </div>
+        </div>
+        <div class="table-responsive">
+            <script src="{% static 'js/table-sort.js' %}"></script>
+            
+              
+              <div class="row">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-body">
+                          <h4>Claims that are in status "Open"</h4>
+                          <div class="table-responsive">
+                            <script src="{% static 'js/table-sort.js' %}"></script>
+                            <div class="float-end me-5">
+                              <button id="closeAllBtn" onclick="location.href='#'" type="submit" class="btn btn-outline-primary w-md me-2">Close All</button>
+                              <input type="checkbox" id="selectAll" />
+                              <label for="selectAll">Select All</label>
+                              
+                            </div>
+                            <table class="table table-hover table-bordered table-sort table-arrows" id="bodyshopTable" width="100%" cellspacing="0">
+                              <thead>
+                                <tr>
+                                  <th class = "order-by-desc">Repair Order</th>
+                                  <th>RO Status</th>
+                                  <th>Created Date</th>
+                                  <th>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {% for claim in open_claims %}
+                                  <tr data-claim-id="{{ claim.id }}">
+                                    <td>
+                                      <a href="{% if 'wrs-admin' in user_groups.first.name %}{% url 'claim:claim-update' pk=claim.id dealership_id=dealership_id %}
+                                      {% else %}{% url 'claim:dealer-claim-update' pk=claim.id dealership_id=dealership_id %}{% endif %}">
+                                          {{ claim.repair_order }}
+                                      </a>
+                                    </td>
+                                    
+                                    <td>
+                                        {{ claim.ro_status}}
+                                    </td>
+                                  
+                                    <td> {{ claim.created_date }} </td>
+                                    <td><button type="submit" class="closeRoBtn btn btn-outline-primary w-md" data-claim-id="{{ claim.id }}">Close RO</button></td>
+                                    <td><input type="checkbox" class="rowCheckbox"/></td>
+                                  </tr>
+                                {% endfor %}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                    </div>
+                </div>
+              </div>
+        
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  <!-- Display form errors if any -->
+  {% if form.errors %}
+    <div class="alert alert-danger" role="alert">
+      <strong>Error:</strong> Please correct the following errors.
+      <ul>
+        {% for field in form %}
+          {% if field.errors %}
+            {% for error in field.errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+{% endblock contents %}
+{% block javascript %}
+        <!-- JAVASCRIPT 
+        <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+        <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+        <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+        <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+
+        <script src="{% static 'js/app.js' %}"></script>
+
+        <script src="{% static 'libs/select2/js/select2.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-datepicker/js/bootstrap-datepicker.min.js' %}"></script>
+        <script src="{% static 'libs/spectrum-colorpicker2/spectrum.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-timepicker/js/bootstrap-timepicker.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-touchspin/jquery.bootstrap-touchspin.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-maxlength/bootstrap-maxlength.min.js' %}"></script>
+        <script src="{% static 'libs/@chenfengyuan/datepicker/datepicker.min.js' %}"></script>
+        <script src="{% static 'js/pages/form-advanced.init.js' %}"></script>
+
+        <script>
+          document.addEventListener('DOMContentLoaded', function () {
+            const selectAllCheckbox = document.getElementById('selectAll');
+            const rowCheckboxes = document.querySelectorAll('.rowCheckbox');
+            const closeAllBtn = document.getElementById('closeAllBtn');
+            const closeRoButtons = document.querySelectorAll('.closeRoBtn');
+        
+            // Select/Deselect all row checkboxes
+            selectAllCheckbox.addEventListener('change', function() {
+              rowCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+              });
+            });
+        
+            // Handle the "Close All" button click
+            closeAllBtn.addEventListener('click', function(event) {
+              event.preventDefault(); // Prevent the default form submission behavior
+        
+              // Collect the selected claim IDs
+              const selectedClaims = [];
+              rowCheckboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                  const claimRow = checkbox.closest('tr');
+                  const claimId = claimRow.getAttribute('data-claim-id');
+                  selectedClaims.push(claimId);
+                }
+              });
+        
+              // Check if any claims are selected
+              if (selectedClaims.length === 0) {
+                alert('Please select at least one claim.');
+                return;
+              }
+        
+              // Send the selected claim IDs to the server via AJAX
+              fetch("{% url 'reports:ro-status' %}", {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': '{{ csrf_token }}' // Ensure CSRF token is included
+                },
+                body: JSON.stringify({
+                  claim_ids: selectedClaims,
+                  ro_status: 'Closed' // The new status you want to set for the claims
+                })
+              })
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  // Optionally reload the page or provide feedback
+                  location.reload();
+                } else {
+                  alert('There was an issue updating the status.');
+                }
+              })
+              .catch(error => {
+                console.error('Error:', error);
+              });
+            });
+        
+            // Handle individual "Close RO" button clicks
+            closeRoButtons.forEach(button => {
+              button.addEventListener('click', function(event) {
+                event.preventDefault(); // Prevent default behavior
+        
+                const claimId = this.getAttribute('data-claim-id');
+        
+                // Send the individual claim ID to the server via AJAX
+                fetch("{% url 'reports:ro-status' %}", {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                  },
+                  body: JSON.stringify({
+                    claim_ids: [claimId], // Sending the single claim ID as an array
+                    ro_status: 'Closed' // The new status
+                  })
+                })
+                .then(response => response.json())
+                .then(data => {
+                  if (data.success) {
+                    // Optionally reload the page or provide feedback
+                    location.reload();
+                  } else {
+                    alert('There was an issue updating the status.');
+                  }
+                })
+                .catch(error => {
+                  console.error('Error:', error);
+                });
+              });
+            });
+          });
+        </script>        
+
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

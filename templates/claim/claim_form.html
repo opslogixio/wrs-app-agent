@@ -1,0 +1,168 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<div class="row">
+  <div class="col-lg-12">
+      <div class="card">
+          <div class="card-body">
+            <h1 class="card-title">
+              Create an initial Claim
+            </h1>        
+            <p class="card-title-desc">
+              Items with an asterisk (*) are required fields.
+            </p>
+            <p class="card-title-desc">
+              Claim tag usage. Check all that apply to this repair order.
+            </p>
+          </div>
+      </div>
+  </div>
+</div>           
+<div class="row">
+  <div class="col-lg-12">
+      <div class="card">
+          <div class="card-body">
+            <form method="POST" enctype="multipart/form-data">
+              {% csrf_token %}
+              {% if claim_form.errors %}
+              <div class="alert alert-danger">
+                {% for field, errors in claim_form.errors.items %}
+                <ul>
+                  {% for error in errors %}
+                <li>{{ field }}: {{ error }}</li>
+                  {% endfor %}
+                </ul>
+                {% endfor %}
+               </div>
+              {% endif %}
+              <!-- Repair Order Input -->
+              <div class="row mb-4">
+                <label class="col-form-label col-lg-2" for="id_repair_order">Repair Order:</label>
+                <div class="col-lg-10">
+                  <input type="text" name="repair_order" id="id_repair_order" class="form-control">
+                </div>
+              </div>
+            
+              <!-- Claim Tag Input -->
+              <div class="row mb-4">
+                
+                <label class="col-form-label col-lg-2" for="id_claim_tag">Claim Tag:</label>
+                
+                <div class="col-lg-10">
+                  {% for tag in tags %}
+                  <input class="form-check-input me-3" type="checkbox" name="claim_tag" value="{{ tag.id }}" id="tag_{{ tag.id }}">
+                  <label class="form-check-label me-3" for="tag_{{ tag.id }}">{{ tag.name }}</label>
+                  {% endfor %}
+                </div>
+                
+              </div>
+              
+              <!-- Dealership Dropdown -->
+              <div class="row mb-4">
+                <label class="col-form-label col-lg-2" for="id_dealership">Dealership:</label>
+                <div class="col-lg-10">
+                  <select name="dealership" id="id_dealership" class="form-control">
+                    {% for dealership in dealerships %}
+                      <option value="{{ dealership.id }}">{{ dealership.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              
+              <!-- Journal Comment Input -->
+              <div class="row mb-4">
+                <label class="col-form-label col-lg-2" for="id_comment">Journal Comment:</label>
+                <div class="col-lg-10">
+                  <textarea name="comment" id="id_comment" class="form-control"></textarea>
+                </div>
+              </div>
+              
+              <!-- PDF File Upload -->
+        
+              <div class="row mb-4">
+                <label class="col-form-label col-lg-2" for="id_pdf_file">PDF File:</label>
+                <div class="col-lg-10">
+                  <input type="file" name="pdf_file" id="id_pdf_file" class="form-control">
+                </div>
+              </div>
+
+
+              <!-- Submit Button -->
+              <div class="row justify-content-end">
+                <div class="col-lg-10">
+                  <button type="submit" class="btn btn-primary">Submit</button>
+                </div>
+              </div>    
+            </form>
+        </div>
+      </div>
+  </div>
+</div>  
+
+
+
+  
+{% endblock contents %}
+{% block javascript %}
+        <!-- JAVASCRIPT 
+        <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+        <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+        <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+        <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+        <!-- form mask -->
+        <script src="{% static 'libs/inputmask/min/jquery.inputmask.bundle.min.js' %}"></script>
+
+        <!-- form mask init -->
+        <script src="{% static 'js/pages/form-mask.init.js' %}"></script>
+        
+        <script src="{% static 'js/app.js' %}"></script>
+
+        <script type="text/javascript">
+            $(window).on('load', function() {
+                $('#manualModal').modal('show');
+            });
+        </script>
+        <script>
+          // Replace '/upload-url/' with the URL where you want to handle the file uploads
+          Dropzone.autoDiscover = false;
+          const myDropzone = new Dropzone("#pdfDropzone", {
+            url: '/upload-url/',
+            paramName: 'pdf_file',
+            maxFilesize: 10, // Maximum file size in MB
+            acceptedFiles: '.pdf', // Only accept PDF files
+            dictDefaultMessage: 'Drag and drop a PDF file here or click to upload',
+            dictInvalidFileType: 'Only PDF files are allowed',
+            init: function () {
+              // Add any additional configuration or event handling here, if needed
+              this.on('success', function (file, response) {
+                // If the upload is successful, you can handle the response here
+                // For example, you can display a link to the uploaded file or update the form fields accordingly.
+                console.log('File upload successful!');
+                console.log(response);
+              });
+        
+              this.on('error', function (file, errorMessage) {
+                // If there is an error with the upload, you can handle it here
+                // For example, you can display an error message or reset the form fields.
+                console.error(errorMessage);
+              });
+            },
+          });
+        </script>
+
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

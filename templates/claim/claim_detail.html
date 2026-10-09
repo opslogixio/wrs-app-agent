@@ -1,0 +1,34 @@
+<!-- claim_detail.html NOT USED-->
+
+
+
+{% block content %}
+  <h1>Claim Detail</h1>
+
+  <h2>Claim Information</h2>
+  <p>Repair Order: {{ claim.repair_order }}</p>
+  <p>Dealership: {{ claim.dealership }}</p>
+  <p>RO Status: {{ claim.ro_status }}</p>
+  <!-- Add other fields you want to display -->
+
+  <h2>Associations</h2>
+  <!-- Display associated objects -->
+  {% for linetable in claim.linetable_set.all %}
+    <h3>Line Table {{ forloop.counter }}</h3>
+    <p>Line Number: {{ linetable.line_num }}</p>
+    <p>Claim Type: {{ linetable.claim_type }}</p>
+    <!-- Add other fields you want to display -->
+  {% endfor %}
+
+  <h2>Journal</h2>
+  <!-- Display associated objects -->
+  {% for journal in claim.journal_set.all %}
+    <h3>Line Table {{ forloop.counter }}</h3>
+    <p>Line Number: {{ journal.line_num }}</p>
+    <p>Comment: {{ journal.comment }}</p>
+    <p>User: {{ journal.user }}</p>
+    <!-- Add other fields you want to display -->
+  {% endfor %}
+
+  <!-- Add edit links or form for updating fields if needed -->
+{% endblock %}

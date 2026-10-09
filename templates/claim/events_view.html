@@ -1,0 +1,62 @@
+
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                 <script src="{% static 'js/table-sort.js' %}"></script>
+                 <!--https://www.cssscript.com/minimal-table-sorter/-->
+                 <h2>Claim Events</h2>
+                    <table class="table table-hover table-bordered table-sort table-arrows" id="dataTable" width="100%" cellspacing="0">
+                        <thead>
+                        <tr>
+                            <th>Claim</th>
+                            <th>Line</th>
+                            <th>User</th>
+                            <th>Comment</th>
+                            <th>Created Date</th>
+                            <th>Modified Date</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for event in events %}
+                            <tr>
+                            <td>{{ event.claim }}</td>
+                            <td>{{ event.line }}</td>
+                            <td>{{ event.user }}</td>
+                            <td>{{ event.comment }}</td>
+                            <td>{{ event.created_date }}</td>
+                            <td>{{ event.modified_date }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+{% endblock contents %}
+{% block javascript %}
+
+
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

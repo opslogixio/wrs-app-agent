@@ -1,0 +1,117 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<div class="row">
+  <div class="col-lg-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="invoice-title">
+          <a class="btn btn-outline-success float-end me-5" href="{% url 'reports:report-export' %}?dealership={{ dealership }}&start_date={{ start_date|date:"Y-m-d" }}&end_date={{ end_date|date:"Y-m-d" }}&report_type={{ report_type }}" role="button">Export to PDF</a>
+          <div class="mb-4">
+            <h4>Dealership: <span style="color: #34A56F">{{ dealership }}</span></h4>
+            <h4>Report Type: <span style="color: #34A56F">Reconciliation Report</span></h4>
+            <h4>Report Date: <span style="color: #34A56F">{{ start_date }} - {{ end_date }}</span></h4>
+          </div>
+        </div>
+        {% if message %}
+          <p>{{ message }}</p>
+        {% else %}
+        <div class="row">
+
+          <div class="table-responsive">
+             <script src="{% static 'js/table-sort.js' %}"></script>
+            <table class="table table-hover table-bordered table-sort table-arrows" id="bodyshopTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th class="order-by-desc">Repair Order</th>
+                        <th>Line Number</th>
+                        <th>Labor</th>
+                        <th>Parts</th>
+                        <th>Maint</th>
+                        <th>Other</th>
+                        <th>Core</th>
+                        <th>Rental</th>
+                        <th>Sublet</th>
+                        <th>Total</th> <!-- This is the total for each line -->
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in discrepancy_lines %}
+                    <tr>
+                        <td>{{ line.claim.repair_order }}</td>
+                        <td>{{ line.line_num }}</td>
+                        <td>{{ line.discrepancy.labor }}</td>
+                        <td>{{ line.discrepancy.parts }}</td>
+                        <td>{{ line.discrepancy.maint }}</td>
+                        <td>{{ line.discrepancy.other }}</td>
+                        <td>{{ line.discrepancy.core }}</td>
+                        <td>{{ line.discrepancy.rental }}</td>
+                        <td>{{ line.discrepancy.sublet }}</td>
+                        <td>{{ line.total_discrepancy }}</td> <!-- Display the calculated total -->
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+                    
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  <!-- Display form errors if any -->
+  {% if form.errors %}
+    <div class="alert alert-danger" role="alert">
+      <strong>Error:</strong> Please correct the following errors.
+      <ul>
+        {% for field in form %}
+          {% if field.errors %}
+            {% for error in field.errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+{% endblock contents %}
+{% block javascript %}
+        <!-- JAVASCRIPT 
+        <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+        <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+        <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+        <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+
+        <script src="{% static 'js/app.js' %}"></script>
+
+        <script src="{% static 'libs/select2/js/select2.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-datepicker/js/bootstrap-datepicker.min.js' %}"></script>
+        <script src="{% static 'libs/spectrum-colorpicker2/spectrum.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-timepicker/js/bootstrap-timepicker.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-touchspin/jquery.bootstrap-touchspin.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-maxlength/bootstrap-maxlength.min.js' %}"></script>
+        <script src="{% static 'libs/@chenfengyuan/datepicker/datepicker.min.js' %}"></script>
+        <script src="{% static 'js/pages/form-advanced.init.js' %}"></script>
+
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

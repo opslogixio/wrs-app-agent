@@ -1,0 +1,210 @@
+{% extends 'partials/base.html' %}
+{% load static %}
+{% static "" as baseUrl %}
+
+{% block css %}
+{% include 'partials/css.html' %}
+{% endblock css %}
+{% block extra_css %}
+{% endblock extra_css %}
+{% block contents %}
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="invoice-title">
+                    
+                    <div class="mb-4">
+                        <h4>Welcome to the reporting page for: <span style="color: #34A56F">{{dealership}}</span></h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col-sm-4">
+        <div class="card shadow rounded-3">
+            <div class="card-body p-4 m-1">
+                <div class="avatar-md mb-3">
+                    <div class="avatar-title rounded bg-success-subtle text-success fs-3">
+                        <i class="bx bx-time display-5"></i>
+                    </div>
+                </div>
+                <h5 class="card-title pt-2">Todays Daily Report</h5>
+                <p class="text-muted">
+                    This is the report for todays date only. All other daily reports can be viewed on the 'Archived Daily Reports'. 
+                </p>               
+                <div class="col-12">
+                    <p>Click submit to generate a report</p>
+                </div>
+                <div>
+                    <button onclick="location.href='{% url 'reports:daily-reports-view' dealership_id=dealership_id %}'" type="button" class="btn btn-primary w-md">Submit</button>
+
+                </div>    
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card shadow rounded-3">
+            <div class="card-body p-4 m-1">
+                <div class="avatar-md mb-3">
+                    <div class="avatar-title rounded bg-success-subtle text-success fs-3">
+                        <i class="bx bx-folder-open display-5"></i>
+                    </div>
+                </div>
+                <h5 class="card-title pt-2">Open RO Report</h5>
+                <p class="text-muted">
+                    This is the report for all Open Repair Orders
+                </p>               
+                    <div class="col-12">
+                        <p>Click submit to generate a report for all repair orders with a status of 'Open'.</p>
+                    </div>
+                    <div>
+                        <button onclick="location.href='{% url 'reports:open-reports-view' dealership_id=dealership_id %}'" type="button" class="btn btn-primary w-md">Submit</button>
+
+                    </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card shadow rounded-3">
+            <div class="card-body p-4 m-1">
+                <div class="avatar-md mb-3">
+                    <div class="avatar-title rounded bg-success-subtle text-success fs-3">
+                        <i class="bx bx-check display-5"></i>
+                    </div>
+                </div>
+                <h5 class="card-title pt-2">Requires Attention Report</h5>
+                <p class="text-muted">
+                    This is the report for all claims that require attention
+                </p>
+                <div class="col-12">
+                    <p>Click submit to generate a report for all repair orders with a status of 'Requires Attention'.</p>
+                </div>
+                    <input type="hidden" name="dealership" value="{{ dealership }}" />                
+                    
+                
+                    <div>
+                        <button onclick="location.href='{% url 'reports:ra-report' filter_request='Requires Attention' %}?dealership_id={{ dealership_id }}'" type="button" class="btn btn-primary w-md">Submit</button>
+
+                    </div>
+                    
+
+            </div>
+        </div>
+    </div>
+</div>                
+<div class="row">
+    <div class="col-sm-4">
+        <div class="card shadow rounded-3">
+            <div class="card-body p-4 m-1">
+                <div class="avatar-md mb-3">
+                    <div class="avatar-title rounded bg-success-subtle text-success fs-3">
+                        <i class="bx bx-calendar display-5"></i>
+                    </div>
+                </div>
+                <h5 class="card-title pt-2">Archived Daily Reports</h5>
+                <p class="text-muted">
+                    This is a daily activity report. These reports are a point in time on all activities generated for that day. 
+                </p>
+                <form method="POST" action="{% url 'reports:archive-daily-reports-view' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="dealership" value="{{ dealership }}" />
+                    <input type="hidden" name="report_type" value="daily-reports-view" />                
+                    <div class="col-12">
+                        <div class="mb-4">
+                            <label for="{{ form.start.id_for_label }}">Select a date</label>
+                            <div class="input-daterange input-group" id="datepicker5" data-date-format="dd M, yyyy" data-date-autoclose="true" data-provide="datepicker" data-date-container='#datepicker5'>
+                                <input type="text" class="form-control" name="{{ form.start.html_name }}" id="{{ form.start.id_for_label }}" value="{{ form.start.value|default:start }}" placeholder="Start Date" />
+                            </div>
+                        </div>
+                    </div>
+                
+                    <div>
+                        <button type="submit" class="btn btn-primary w-md">Submit</button>
+                    </div>
+                    
+                </form>
+
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="card shadow rounded-3">
+            <div class="card-body p-4 m-1">
+                <div class="avatar-md mb-3">
+                    <div class="avatar-title rounded bg-success-subtle text-success fs-3">
+                        <i class="bx bx-copy display-5"></i>
+                    </div>
+                </div>
+                <h5 class="card-title pt-2">Reconciliation Report</h5>
+                <p class="text-muted">
+                    This report with extract all claims, withing a given date range, that have discrepancies.
+                </p>
+                <form method="POST" action="{% url 'reports:discrepancy-report' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="dealership" value="{{ dealership_id }}" />  <!-- Pass dealership ID -->
+                    
+                    <div class="col-12">
+                        <div class="mb-4">
+                            <label for="start_date">Select Date Range</label>
+                            <div class="input-daterange input-group" id="datepicker6" data-date-format="dd M, yyyy" data-date-autoclose="true" data-provide="datepicker" data-date-container='#datepicker6'>
+                                <input type="text" class="form-control" name="start_date" id="start_date" value="{{ start_date|default:start_date }}" placeholder="Start Date" />
+                                <input type="text" class="form-control" name="end_date" id="end_date" value="{{ end_date|default:end_date }}" placeholder="End Date" />
+                            </div>
+                        </div>
+                    </div>
+                
+                    <div>
+                        <button type="submit" class="btn btn-primary w-md">Submit</button>
+                    </div>
+                </form>
+                
+            </div>
+        </div>
+    </div>
+</div> 
+<div class="row"></div>
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="invoice-title">
+                    
+                    <div class="mb-4">
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock contents %}
+{% block javascript %}
+        <!-- JAVASCRIPT 
+        <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
+        <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+        <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+        <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+
+        <script src="{% static 'js/app.js' %}"></script>
+
+        <script src="{% static 'libs/select2/js/select2.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-datepicker/js/bootstrap-datepicker.min.js' %}"></script>
+        <script src="{% static 'libs/spectrum-colorpicker2/spectrum.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-timepicker/js/bootstrap-timepicker.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-touchspin/jquery.bootstrap-touchspin.min.js' %}"></script>
+        <script src="{% static 'libs/bootstrap-maxlength/bootstrap-maxlength.min.js' %}"></script>
+        <script src="{% static 'libs/@chenfengyuan/datepicker/datepicker.min.js' %}"></script>
+        <script src="{% static 'js/pages/form-advanced.init.js' %}"></script>
+
+{% endblock javascript %}
+{% block r_sidebar %}
+{% include 'partials/rightsidebar.html' %}
+{% endblock r_sidebar %}
+{% block footer %}
+{% include 'partials/footer.html' %}
+{% endblock %}

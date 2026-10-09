@@ -120,8 +120,8 @@ def update_daily_report_database(dealership_id, start):
             # Fetch comments specifically associated with this line
             line_journals = Journal.objects.filter(
                 line_id=line_data['line_table_id'],
-                user_id__in=[2, 14],
-                created_date=as_datetime(start)
+                user__groups__name='wrs-admin',
+                created_date__date=as_date(start)
             )
             #).values_list('comment', flat=True)
 

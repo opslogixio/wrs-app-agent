@@ -292,7 +292,7 @@ class QueuePaginationTests(TestCase):
             status = 'Pending' if route.startswith('pending') else 'Rework'
             response = self.client.get(reverse('claim:' + route, args=[status]), {'dealership_id': self.dealer.pk})
             self.assertContains(response, '$12.50', count=100)
-            self.assertContains(response, 'January 01, 2020', count=100)
+            self.assertContains(response, '2020-01-01 00:00:00 EST', count=100)
 
     def test_queue_data_queries_are_bounded_and_foreign_lines_are_excluded(self):
         from .views import PendingClaimQueueListView

@@ -185,6 +185,12 @@ class BackgroundReportTests(TestCase):
                 self.assertTrue(report_path(job).is_file())
                 reader = PdfReader(report_path(job))
                 self.assertTrue(any(len(page.images) for page in reader.pages), f'{name} logo is missing')
+                from pypdf.generic import ContentStream
+                for page in reader.pages:
+                    for operands, operator in ContentStream(page.get_contents(), reader).operations:
+                        if operator == b'cm':
+                            self.assertLess(abs(float(operands[4])), float(page.mediabox.width), 'Graphic translated outside page')
+                            self.assertLess(abs(float(operands[5])), float(page.mediabox.height), 'Graphic translated outside page')
                 text = '\n'.join(page.extract_text() for page in reader.pages)
                 self.assertIn('7654321', text)
                 self.assertIn(self.dealer.name, text)
@@ -362,6 +368,7 @@ class ReportTaskTests(TestCase):
                 path.write_bytes(b'%PDF-1.4\n')
                 response = self.client.get(reverse('reports:report-job-download', args=[job.pk]))
                 self.assertTrue(response['Content-Disposition'].startswith('attachment;'))
+                self.assertIn(f'task-reports-{name.lower().replace(" ", "-")}-2026-10-09.pdf', response['Content-Disposition'])
                 self.assertEqual(b''.join(response.streaming_content), b'%PDF-1.4\n')
                 self.assertFalse(path.exists())
                 self.assertEqual(self.client.get(reverse('reports:report-job', args=[job.pk])).status_code, 404)

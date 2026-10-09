@@ -183,7 +183,9 @@ class BackgroundReportTests(TestCase):
                 job.refresh_from_db()
                 self.assertEqual(job.state, 'completed', job.error)
                 self.assertTrue(report_path(job).is_file())
-                text = '\n'.join(page.extract_text() for page in PdfReader(report_path(job)).pages)
+                reader = PdfReader(report_path(job))
+                self.assertTrue(any(len(page.images) for page in reader.pages), f'{name} logo is missing')
+                text = '\n'.join(page.extract_text() for page in reader.pages)
                 self.assertIn('7654321', text)
                 self.assertIn(self.dealer.name, text)
 

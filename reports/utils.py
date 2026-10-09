@@ -7,6 +7,7 @@ import os
 from django.core.mail import EmailMessage, get_connection
 from .models import Dealership, CustomUser
 from reports.views import ReportService, get_claim_status_totals
+from reports.jobs import local_asset
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ def generate_daily_pdf(output_dir, start_date=None):
         output_path = os.path.join(nested_dir, filename)
 
         with open(output_path, "wb") as f:
-            pisa_status = pisa.CreatePDF(html, dest=f)
+            pisa_status = pisa.CreatePDF(html, dest=f, link_callback=local_asset)
 
         if pisa_status.err:
             print(f"[ERROR] Failed to generate PDF for {dealership.name}")

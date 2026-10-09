@@ -14,7 +14,7 @@
     <div class="card">
       <div class="card-body">
         <div class="invoice-title">
-          <a class="btn btn-outline-success float-end me-5" href="{% url 'reports:report-export' %}?dealership={{ dealership }}&start_date={{ start_date|date:"Y-m-d" }}&end_date={{ end_date|date:"Y-m-d" }}&report_type={{ report_type }}" role="button">Export to PDF</a>
+          {% include 'reports/export_button.html' %}
           <div class="mb-4">
             <h4>Dealership: <span style="color: #34A56F">{{ dealership }}</span></h4>
             <h4>Report Type: <span style="color: #34A56F">Reconciliation Report</span></h4>

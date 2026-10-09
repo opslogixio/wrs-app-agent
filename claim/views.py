@@ -20,7 +20,7 @@ from django.views.generic import View, FormView, CreateView, ListView, DetailVie
 from django.views.generic.edit import UpdateView
 from django.views.decorators.http import require_POST, require_GET
 from django.http import HttpResponseRedirect, HttpResponse, HttpResponseBadRequest, JsonResponse, HttpResponseNotAllowed, Http404
-from django.db.models import Q, OuterRef, Subquery, Count
+from django.db.models import Q, OuterRef, Subquery, Count, Prefetch
 from io import BytesIO
 from xhtml2pdf import pisa
 from collections import OrderedDict
@@ -196,506 +196,103 @@ class ClaimDetailView(DetailView):
 # This only being used for 'rework' queue
 #####################################################################################
 
-@method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class ClaimQueueListView(DealershipAccessMixin, ListView):
+class PaginatedClaimQueue(DealershipAccessMixin, ListView):
+    """Paginate claims before loading their lines or splitting Bodyshop sections."""
     model = Claim
+    paginate_by = 50
+    section_name = 'other_claims'
+    include_line_ages = False
+    include_initial_comment = False
+
+    def get_queryset(self):
+        status = self.kwargs['filter_request']
+        filters = {'linetable__claim_status__name': status}
+        if status == 'Aging':
+            filters = {
+                'linetable__claim_status__name': 'Requires Attention',
+                'linetable__start_date__lte': date.today() - timedelta(days=90),
+            }
+        lines = LineTable.objects.filter(
+            dealership=self.authorized_dealership,
+        ).select_related('claim_status', 'claim_type', 'discrepancy').order_by('pk')
+        queryset = (Claim.objects.filter(dealership=self.authorized_dealership,
+                linetable__dealership=self.authorized_dealership, **filters)
+            .distinct().select_related('ro_status', 'dealership')
+            .prefetch_related(Prefetch('linetable_set', queryset=lines), 'claim_tag')
+            .order_by('-repair_order', '-pk'))
+        if self.include_initial_comment:
+            comment = (Journal.objects.filter(claim_id=OuterRef('pk'), line_id__isnull=True)
+                .order_by('created_date', 'pk').values('comment')[:1])
+            queryset = queryset.annotate(new_comment=Subquery(comment))
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        bodyshop, other = [], []
+        tags = {}
+        today = date.today()
+        for claim in context['object_list']:
+            claim_tags = list(claim.claim_tag.all())
+            tags.update({tag.pk: tag for tag in claim_tags})
+            item = claim
+            if self.include_line_ages:
+                item = {'claim': claim, 'lines': [
+                    {'line': line, 'claim_age': (today - line.start_date).days + 1 if line.start_date else None}
+                    for line in claim.linetable_set.all()
+                ]}
+            target = bodyshop if any(tag.name == 'Bodyshop' for tag in claim_tags) else other
+            target.append(item)
+        query = self.request.GET.copy()
+        query.pop('page', None)
+        context.update({
+            'claim_status': self.kwargs['filter_request'],
+            'dealership': self.authorized_dealership,
+            'dealership_id': self.authorized_dealership.pk,
+            'user_groups': self.request.user.groups.all(),
+            'bodyshop': bool(bodyshop), 'bodyshop_claims': bodyshop,
+            self.section_name: other, 'tags': list(tags.values()),
+            'pagination_query': query.urlencode(),
+        })
+        return context
+
+
+@method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
+class ClaimQueueListView(PaginatedClaimQueue):
     template_name = 'claim/claim_queue.html'
     context_object_name = 'claim_queue'
-    bodyshop = False
 
-
-    def get_queryset(self):
-        # Get the filter request from the URL parameter
-        filter_request = self.kwargs.get('filter_request')
-        dealership_id = self.request.GET.get('dealership_id')
-        ninety_days_ago = date.today() - timedelta(days=90)
-
-        try:
-            dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
-            user = self.request.user
-            #dealership_ids = user.dealership.values_list('id', flat=True)
-            #queryset = Claim.objects.filter(
-            #Q(linetable__claim_status_id=claim_status.id) & Q(dealership_id__in=dealership_ids)
-
-            try:
-                if filter_request == 'Aging':
-                    #queryset = LineTable.objects.filter(claim_status__name='Requires Attention', dealership_id=dealership, start_date__gte=ninety_days_ago)
-                    queryset = Claim.objects.filter(linetable__claim_status__name='Requires Attention', dealership=dealership, linetable__start_date__lte=ninety_days_ago)
-                else:
-                    claim_status_obj = Status.objects.get(name=filter_request)
-                    queryset = Claim.objects.filter(linetable__claim_status_id=claim_status_obj.id, dealership=dealership)
-            except Status.DoesNotExist:
-                queryset = Claim.objects.filter(
-                    dealership=dealership
-                ).exclude(
-                    Q(linetable__claim_status__name='New')
-                )
-
-        except Status.DoesNotExist:
-            queryset = Claim.objects.none()
-
-        if queryset.filter(claim_tag__name='Bodyshop').exists():
-            self.bodyshop = True
-
-        bodyshop_claims = queryset.filter(claim_tag__name='Bodyshop')
-        other_claims = queryset.exclude(claim_tag__name='Bodyshop')
-
-        # Update the bodyshop flag if there are any bodyshop claims
-        if bodyshop_claims:
-            self.bodyshop = True
-
-        return {'bodyshop_claims': bodyshop_claims, 'other_claims': other_claims}
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        filter_request = self.kwargs.get('filter_request')
-        dealership_id = self.request.GET.get('dealership_id')
-        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
-        user = self.request.user
-        user_groups = user.groups.all()
-        filtered_claims = self.get_queryset()
-        tags = Tag.objects.filter(claim__in=filtered_claims['bodyshop_claims'] | filtered_claims['other_claims'])
-        #dealerships = user.dealership.all()
-        #context['dealerships'] = dealerships
-        context['claim_status'] = filter_request
-        context['user_groups'] = user_groups
-        context['dealership'] = dealership
-        context['dealership_id'] = dealership_id
-        context['tags'] = tags
-        context['bodyshop'] = self.bodyshop
-        context['bodyshop_claims'] = filtered_claims['bodyshop_claims']
-        context['other_claims'] = filtered_claims['other_claims']
-
-        return context
-
-#####################################################################################
-# New Claim Queue
-#####################################################################################
 
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class NewClaimQueueListView(DealershipAccessMixin, ListView):
-    model = Claim
+class NewClaimQueueListView(PaginatedClaimQueue):
     template_name = 'claim/new_claim_queue.html'
     context_object_name = 'new_claim_queue'
-    bodyshop = False
-
-    def get_queryset(self):
-        filter_request = self.kwargs.get('filter_request')
-        dealership_id = self.request.GET.get('dealership_id')
+    section_name = 'new_claims'
+    include_initial_comment = True
 
 
-        try:
-            dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
-            claim_status_obj = Status.objects.get(name=filter_request)
-
-
-            new_line_comment = Journal.objects.filter(
-                claim_id=OuterRef('pk'),
-                line_id__isnull=True
-            ).order_by('created_date').values('comment')[:1]
-
-            queryset = Claim.objects.filter(
-                linetable__claim_status=claim_status_obj,
-                dealership=dealership
-            ).annotate(
-                new_comment=Subquery(new_line_comment)
-            ).distinct().prefetch_related(
-                'linetable_set__claim_status',
-                'claim_tag'
-            )
-
-
-            for claim in queryset[:10]:
-
-                journals = Journal.objects.filter(
-                    claim_id=claim.id,
-                    line_id__isnull=True
-                ).values(
-                    'id',
-                    'claim_id',
-                    'line_id',
-                    'comment',
-                    'created_date'
-                )
-
-
-        except (Status.DoesNotExist, Dealership.DoesNotExist) as e:
-            queryset = Claim.objects.none()
-
-        bodyshop_claims = queryset.filter(claim_tag__name='Bodyshop')
-        new_claims = queryset.exclude(claim_tag__name='Bodyshop')
-
-
-        if bodyshop_claims.exists():
-            self.bodyshop = True
-
-        return {
-            'bodyshop_claims': bodyshop_claims,
-            'new_claims': new_claims
-        }
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        filter_request = self.kwargs.get('filter_request')
-        dealership_id = self.request.GET.get('dealership_id')
-        dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
-        user = self.request.user
-
-        filtered_claims = self.get_queryset()
-
-        context['claim_status'] = filter_request
-        context['user_groups'] = user.groups.all()
-        context['dealership'] = dealership
-        context['dealership_id'] = dealership_id
-        context['bodyshop'] = self.bodyshop
-        context['bodyshop_claims'] = filtered_claims['bodyshop_claims']
-        context['new_claims'] = filtered_claims['new_claims']
-
-        return context
-
-#####################################################################################
-# Requires Attention Queue
-#####################################################################################
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class RaClaimQueueListView(DealershipAccessMixin, ListView):
-    model = Claim
+class RaClaimQueueListView(PaginatedClaimQueue):
     template_name = 'claim/ra_claim_queue.html'
     context_object_name = 'ra_claim_queue'
-    bodyshop = False
+    section_name = 'ra_claims'
+    include_line_ages = True
 
-    def get_queryset(self):
-        filter_request = self.kwargs.get('filter_request')
-        dealership_id = self.request.GET.get('dealership_id')
-        ninety_days_ago = date.today() - timedelta(days=90)
-        today = date.today()
 
-        try:
-            dealership = get_object_or_404(accessible_dealerships(self.request.user),
-                id=dealership_id
-            )
-
-            if filter_request == 'Aging':
-                queryset = (
-                    Claim.objects
-                    .filter(
-                        linetable__claim_status__name='Requires Attention',
-                        dealership=dealership,
-                        linetable__start_date__lte=ninety_days_ago
-                    )
-                    .distinct()
-                    .prefetch_related(
-                        'linetable_set__claim_status',
-                        'claim_tag'
-                    )
-                )
-            else:
-                claim_status_obj = Status.objects.get(
-                    name=filter_request
-                )
-
-                queryset = (
-                    Claim.objects
-                    .filter(
-                        linetable__claim_status=claim_status_obj,
-                        dealership=dealership
-                    )
-                    .distinct()
-                    .prefetch_related(
-                        'linetable_set__claim_status',
-                        'claim_tag'
-                    )
-                )
-
-        except (Status.DoesNotExist, Dealership.DoesNotExist):
-            queryset = Claim.objects.none()
-
-        claim_data = []
-
-        for claim in queryset:
-            claim_info = {
-                'claim': claim,
-                'lines': []
-            }
-
-            for line in claim.linetable_set.all():
-
-                if line.start_date:
-                    claim_age = (
-                        today - line.start_date
-                    ).days + 1
-                else:
-                    claim_age = None
-
-                claim_info['lines'].append({
-                    'line': line,
-                    'claim_age': claim_age,
-                })
-
-            claim_data.append(claim_info)
-
-        bodyshop_claims = []
-        ra_claims = []
-
-        for data in claim_data:
-            is_bodyshop = any(
-                tag.name == 'Bodyshop'
-                for tag in data['claim'].claim_tag.all()
-            )
-
-            if is_bodyshop:
-                bodyshop_claims.append(data)
-            else:
-                ra_claims.append(data)
-
-        self.bodyshop = bool(bodyshop_claims)
-
-        return {
-            'bodyshop_claims': bodyshop_claims,
-            'ra_claims': ra_claims
-        }
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        filter_request = self.kwargs.get('filter_request')
-        dealership_id = self.request.GET.get('dealership_id')
-
-        dealership = get_object_or_404(accessible_dealerships(self.request.user),
-            id=dealership_id
-        )
-
-        user = self.request.user
-        filtered_claims = self.get_queryset()
-
-        context['claim_status'] = filter_request
-        context['user_groups'] = user.groups.all()
-        context['dealership'] = dealership
-        context['dealership_id'] = dealership_id
-        context['bodyshop'] = self.bodyshop
-        context['bodyshop_claims'] = filtered_claims['bodyshop_claims']
-        context['ra_claims'] = filtered_claims['ra_claims']
-
-        return context
-
-#####################################################################################
-# Pending Queue
-#####################################################################################
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class PendingClaimQueueListView(DealershipAccessMixin, ListView):
-    model = Claim
+class PendingClaimQueueListView(PaginatedClaimQueue):
     template_name = 'claim/pending_claim_queue.html'
     context_object_name = 'pending_claim_queue'
-    bodyshop = False
+    section_name = 'pending_claims'
+    include_line_ages = True
 
-    def get_queryset(self):
-        filter_request = self.kwargs.get('filter_request')
-        dealership_id = self.request.GET.get('dealership_id')
-        today = date.today()
 
-        try:
-            dealership = get_object_or_404(accessible_dealerships(self.request.user),
-                id=dealership_id
-            )
-
-            claim_status_obj = Status.objects.get(
-                name=filter_request
-            )
-
-            queryset = (
-                Claim.objects
-                .filter(
-                    linetable__claim_status=claim_status_obj,
-                    dealership=dealership
-                )
-                .distinct()
-                .prefetch_related(
-                    'linetable_set__claim_status',
-                    'claim_tag'
-                )
-            )
-
-        except (Status.DoesNotExist, Dealership.DoesNotExist):
-            queryset = Claim.objects.none()
-
-        claim_data = []
-
-        for claim in queryset:
-            claim_info = {
-                'claim': claim,
-                'lines': []
-            }
-
-            for line in claim.linetable_set.all():
-
-                if line.start_date:
-                    claim_age = (
-                        today - line.start_date
-                    ).days + 1
-                else:
-                    claim_age = None
-
-                claim_info['lines'].append({
-                    'line': line,
-                    'claim_age': claim_age,
-                })
-
-            claim_data.append(claim_info)
-
-        bodyshop_claims = []
-        pending_claims = []
-
-        for data in claim_data:
-            is_bodyshop = any(
-                tag.name == 'Bodyshop'
-                for tag in data['claim'].claim_tag.all()
-            )
-
-            if is_bodyshop:
-                bodyshop_claims.append(data)
-            else:
-                pending_claims.append(data)
-
-        self.bodyshop = bool(bodyshop_claims)
-
-        return {
-            'bodyshop_claims': bodyshop_claims,
-            'pending_claims': pending_claims
-        }
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        filter_request = self.kwargs.get('filter_request')
-        dealership_id = self.request.GET.get('dealership_id')
-
-        dealership = get_object_or_404(accessible_dealerships(self.request.user),
-            id=dealership_id
-        )
-
-        user = self.request.user
-        filtered_claims = self.get_queryset()
-
-        context['claim_status'] = filter_request
-        context['user_groups'] = user.groups.all()
-        context['dealership'] = dealership
-        context['dealership_id'] = dealership_id
-        context['bodyshop'] = self.bodyshop
-        context['bodyshop_claims'] = filtered_claims['bodyshop_claims']
-        context['pending_claims'] = filtered_claims['pending_claims']
-
-        return context
-
-#####################################################################################
-# Rework Queue
-#####################################################################################
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
-class ReworkClaimQueueListView(DealershipAccessMixin, ListView):
-    model = Claim
+class ReworkClaimQueueListView(PaginatedClaimQueue):
     template_name = 'claim/rework_claim_queue.html'
     context_object_name = 'rework_claim_queue'
-    bodyshop = False
+    section_name = 'rework_claims'
+    include_line_ages = True
 
-    def get_queryset(self):
-        filter_request = self.kwargs.get('filter_request')
-        dealership_id = self.request.GET.get('dealership_id')
-        today = date.today()
-
-        try:
-            dealership = get_object_or_404(accessible_dealerships(self.request.user),
-                id=dealership_id
-            )
-
-            claim_status_obj = Status.objects.get(
-                name=filter_request
-            )
-
-            queryset = (
-                Claim.objects
-                .filter(
-                    linetable__claim_status=claim_status_obj,
-                    dealership=dealership
-                )
-                .distinct()
-                .prefetch_related(
-                    'linetable_set__claim_status',
-                    'claim_tag'
-                )
-            )
-
-        except (Status.DoesNotExist, Dealership.DoesNotExist):
-            queryset = Claim.objects.none()
-
-        claim_data = []
-
-        for claim in queryset:
-            claim_info = {
-                'claim': claim,
-                'lines': []
-            }
-
-            for line in claim.linetable_set.all():
-
-                if line.start_date:
-                    claim_age = (
-                        today - line.start_date
-                    ).days + 1
-                else:
-                    claim_age = None
-
-                claim_info['lines'].append({
-                    'line': line,
-                    'claim_age': claim_age,
-                })
-
-            claim_data.append(claim_info)
-
-        bodyshop_claims = []
-        rework_claims = []
-
-        for data in claim_data:
-            is_bodyshop = any(
-                tag.name == 'Bodyshop'
-                for tag in data['claim'].claim_tag.all()
-            )
-
-            if is_bodyshop:
-                bodyshop_claims.append(data)
-            else:
-                rework_claims.append(data)
-
-        self.bodyshop = bool(bodyshop_claims)
-
-        return {
-            'bodyshop_claims': bodyshop_claims,
-            'rework_claims': rework_claims
-        }
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        filter_request = self.kwargs.get('filter_request')
-        dealership_id = self.request.GET.get('dealership_id')
-
-        dealership = get_object_or_404(accessible_dealerships(self.request.user),
-            id=dealership_id
-        )
-
-        user = self.request.user
-        filtered_claims = self.get_queryset()
-
-        context['claim_status'] = filter_request
-        context['user_groups'] = user.groups.all()
-        context['dealership'] = dealership
-        context['dealership_id'] = dealership_id
-        context['bodyshop'] = self.bodyshop
-        context['bodyshop_claims'] = filtered_claims['bodyshop_claims']
-        context['rework_claims'] = filtered_claims['rework_claims']
-
-        return context
-
-#####################################################################################
-# Open RO queue
-#####################################################################################
 
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch') ##### NOT USED
 class OpenRoQueueListView(ListView):

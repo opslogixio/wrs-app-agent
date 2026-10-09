@@ -1,7 +1,7 @@
 from pathlib import Path
 from django.db import transaction
 from django.http import FileResponse, Http404
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 from django.urls import reverse
 from decorators.access import (in_group_required, accessible_dealerships, get_dealership,
     claims_for_user, lines_for_user, positive_id, safe_return_url, is_wrs_admin, DealershipAccessMixin)
@@ -194,10 +194,10 @@ class ReportService:
     @staticmethod
     def generate_archived_report(dealership_id, start_date):
         # Query HistoricalClaim by created_date (>= start_date)
-        claims = HistoricalClaim.objects.filter(dealership_id=dealership_id, created_date=start_date).prefetch_related(
+        claims = HistoricalClaim.objects.filter(dealership_id=dealership_id, created_date__date=start_date).select_related('ro_status').prefetch_related(
             Prefetch(
                 'historicallinetable_set', 
-                queryset=HistoricalLineTable.objects.prefetch_related(
+                queryset=HistoricalLineTable.objects.select_related('claim_status').prefetch_related(
                     Prefetch('historicaljournal_set', queryset=HistoricalJournal.objects.all(), to_attr='journals')
                 ),
                 to_attr='lines'
@@ -212,7 +212,7 @@ class ReportService:
         for claim in claims:
             claim_data = {
                 'repair_order': claim.repair_order,
-                'ro_status': claim.ro_status.name,
+                'ro_status': claim.ro_status.name if claim.ro_status else '',
                 'lines': []
             }
             
@@ -277,19 +277,19 @@ class ReportService:
             # Filter logic based on 'filter_request'
             if filter_request == 'Aging':
                 queryset = Claim.objects.filter(
-                    linetable__claim_status__name='Requires Attention', 
-                    dealership=dealership,
+                    linetable__claim_status__name='Requires Attention',
+                    linetable__dealership_id=dealership_id, dealership=dealership,
                     linetable__start_date__lte=ninety_days_ago
-                ).distinct().prefetch_related(
-                    Prefetch('linetable_set', queryset=LineTable.objects.prefetch_related('journal_set'))
+                ).distinct().select_related('ro_status').prefetch_related('claim_tag',
+                    Prefetch('linetable_set', queryset=LineTable.objects.filter(dealership_id=dealership_id).select_related('claim_status', 'claim_type').prefetch_related(Prefetch('journal_set', queryset=Journal.objects.order_by('-created_date', '-pk'))))
                 )
             else:
                 claim_status_obj = Status.objects.get(name=filter_request)
                 queryset = Claim.objects.filter(
                     linetable__claim_status=claim_status_obj,
-                    dealership=dealership
-                ).distinct().prefetch_related(
-                    Prefetch('linetable_set', queryset=LineTable.objects.prefetch_related('journal_set'))
+                    linetable__dealership_id=dealership_id, dealership=dealership
+                ).distinct().select_related('ro_status').prefetch_related('claim_tag',
+                    Prefetch('linetable_set', queryset=LineTable.objects.filter(dealership_id=dealership_id).select_related('claim_status', 'claim_type').prefetch_related(Prefetch('journal_set', queryset=Journal.objects.order_by('-created_date', '-pk'))))
                 )
 
         except (Status.DoesNotExist, Dealership.DoesNotExist):
@@ -303,7 +303,8 @@ class ReportService:
 
                 # Fetch associated comments from Journal
                 #comments = list(line.journal_set.values_list('comment', flat=True))
-                latest_comment = line.journal_set.order_by('-created_date').first()
+                comments_list = list(line.journal_set.all())
+                latest_comment = comments_list[0] if comments_list else None
                 comments = latest_comment.comment if latest_comment else "No Comment"
 
                 claim_info['lines'].append({
@@ -314,174 +315,103 @@ class ReportService:
             claim_data.append(claim_info)
 
         # Separate bodyshop and non-bodyshop claims
-        bodyshop_claims = [data for data in claim_data if 'Bodyshop' in data['claim'].claim_tag.values_list('name', flat=True)]
-        ra_claims = [data for data in claim_data if 'Bodyshop' not in data['claim'].claim_tag.values_list('name', flat=True)]
+        bodyshop_claims = [data for data in claim_data if any(tag.name == 'Bodyshop' for tag in data['claim'].claim_tag.all())]
+        ra_claims = [data for data in claim_data if not any(tag.name == 'Bodyshop' for tag in data['claim'].claim_tag.all())]
 
         return {'bodyshop_claims': bodyshop_claims, 'ra_claims': ra_claims}
 
 
 
 def get_claim_status_totals(dealership_id, start_date):
+    from django.db.models import Sum
+    totals = dict.fromkeys(['Paid', 'Requires_Attention', 'Pending', 'Rejected', 'Not_Submitted'], 0)
+    rows = (LineTable.objects.filter(dealership_id=dealership_id, claim__dealership_id=dealership_id,
+        modified_date=start_date).order_by().values('claim_status__name').annotate(total=Sum('claim_total')))
+    for row in rows:
+        key = (row['claim_status__name'] or '').replace(' ', '_')
+        if key in totals:
+            totals[key] = row['total'] or 0
+    return {key: f'${value:,.2f}' for key, value in totals.items()}
 
-    line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date=(start_date))
-
-    claim_status_totals = {
-        'Paid': 0,
-        'Requires_Attention': 0,
-        'Pending': 0,
-        'Rejected': 0,
-        'Not_Submitted': 0,
-    }
-
-    for line in line_tables:
-        claim_status_name = line.claim_status.name
-
-        # Skip records with a claim_status of 'New'
-        if claim_status_name in ('New', 'No Warranty', 'Rework'):
-            continue
-
-        # Update the claim_status totals
-        #claim_status_totals[claim_status_name] += line.claim_total
-        
-        claim_status_totals[claim_status_name.replace(' ', '_')] += line.claim_total
-    
-    # Format the claim status totals as dollar values
-    for key, value in claim_status_totals.items():
-        claim_status_totals[key] = "${:,.2f}".format(value)
-
-    return claim_status_totals
 
 @in_group_required('dealer-admin', 'wrs-admin')
-@require_GET
+@require_http_methods(['GET', 'POST'])
 def export_to_pdf(request):
-    # Get the data for the report
-    dealership = request.GET.get('dealership')
-    dealership_obj = get_object_or_404(accessible_dealerships(request.user), name=dealership)
-    report_type = request.GET.get('report_type')
-    if report_type not in {'Daily Report', 'Archived Report', 'Discrepancy Report', 'RA Report'}:
+    """GET confirms parameters; CSRF-protected POST queues generation."""
+    from .jobs import enqueue_report
+    from .models import ReportJob
+    params = request.POST if request.method == 'POST' else request.GET
+    dealership = get_object_or_404(accessible_dealerships(request.user), name=params.get('dealership'))
+    report_type = params.get('report_type')
+    if report_type not in dict(ReportJob._meta.get_field('report_type').choices):
         return HttpResponseBadRequest('Invalid report type.')
-    start_date_request = request.GET.get('start_date')
-    end_date_request = request.GET.get('end_date')
+    start_date = end_date = None
     try:
-        if report_type in {'Daily Report', 'Archived Report', 'Discrepancy Report'}:
-            datetime.strptime(start_date_request, '%Y-%m-%d')
+        if report_type != 'RA Report':
+            start_date = datetime.strptime(params.get('start_date'), '%Y-%m-%d').date()
         if report_type == 'Discrepancy Report':
-            if datetime.strptime(end_date_request, '%Y-%m-%d') < datetime.strptime(start_date_request, '%Y-%m-%d'):
+            end_date = datetime.strptime(params.get('end_date'), '%Y-%m-%d').date()
+            if end_date < start_date:
                 raise ValueError
     except (TypeError, ValueError):
         return HttpResponseBadRequest('Invalid report date range.')
+    context = {'dealership': dealership.name, 'report_type': report_type,
+        'start_date': start_date, 'end_date': end_date}
+    if request.method == 'POST':
+        try:
+            job = enqueue_report(request.user, dealership, report_type, start_date, end_date)
+        except ValueError as error:
+            context['error'] = str(error)
+            response = render(request, 'reports/export_request.html', context, status=429)
+            response['Retry-After'] = '30'
+            return response
+        return redirect('reports:report-job', job_id=job.pk)
+    return render(request, 'reports/export_request.html', context)
 
-    if report_type == "Daily Report":
-        start_date = datetime.strptime(start_date_request, '%Y-%m-%d').date()
-        report = ReportService.generate_daily_report(dealership_obj.id, start_date)
-        claim_status_totals = get_claim_status_totals(dealership_obj.id, start_date)
-        
-        if report:
-            context = {
-            'report': report,
-            'dealership': dealership,
-            'report_type': report_type,
-            'claim_status_totals': claim_status_totals,
-            'start_date': start_date_request,
-            }
-            content = render_to_string('reports/report_pdf.html', context)
-        else:
-            context = {
-            'message': "There is no report to export",
-            'dealership': dealership,
-            'report_type': report_type,
-            'claim_status_totals': claim_status_totals,
-            'start_date': start_date_request,
-            }
-            content = render_to_string('reports/report_pdf.html', context)
 
-    elif report_type == "Archived Report":
-        start_date = start_date_request
-        report = ReportService.generate_archived_report(dealership_obj.id, start_date)
- 
-        if report:
-            context = {
-            'report': report,
-            'dealership': dealership,
-            'report_type': report_type,
-            'start_date': start_date_request,
-            }
-            content = render_to_string('reports/archive_report_pdf.html', context)
-        else:
-            context = {
-            'message': "There is no report to export",
-            'dealership': dealership,
-            'report_type': report_type,
-            'start_date': start_date_request,
-            }
-            content = render_to_string('reports/archive_report_pdf.html', context)
+def accessible_report_job(request, job_id):
+    from .models import ReportJob
+    jobs = ReportJob.objects.filter(dealership__in=accessible_dealerships(request.user))
+    if not is_wrs_admin(request.user):
+        jobs = jobs.filter(requested_by=request.user)
+    return get_object_or_404(jobs.select_related('dealership'), pk=job_id)
 
-    elif report_type == "Discrepancy Report":
-        start_date = start_date_request
-        end_date = end_date_request
-        report = ReportService.generate_discrepancy_report(dealership_obj.id, start_date, end_date)
 
-        if report:
-            context = {
-            'report': report,
-            'dealership': dealership,
-            'report_type': report_type,
-            'start_date': start_date_request,
-            'end_date': end_date_request,
-            }
-            content = render_to_string('reports/discrepancy_pdf.html', context)
-        else:
-            context = {
-            'message': "There is no report to export",
-            'dealership': dealership,
-            'report_type': report_type,
-            'start_date': start_date_request,
-            'end_date': end_date_request,
-            }
-            content = render_to_string('reports/discrepancy_pdf.html', context)
-
-    elif report_type == "RA Report":
-        filter_request = "Requires Attention"
-        report = ReportService.generate_ra_report(dealership_obj.id, filter_request)
-        
-        if report:
-            context = {
-            'report': report,
-            'dealership': dealership,
-            'report_type': "Requires Attention Report",
-            }
-            content = render_to_string('reports/rareport_pdf.html', context)
-        else:
-            context = {
-            'message': "There is no report to export",
-            'dealership': dealership,
-            'report_type': "Requires Attention Report",
-            }
-            content = render_to_string('reports/rareport_pdf.html', context)
-
-    # Create a file-like buffer to receive PDF data
-    buffer = BytesIO()
-
-    # Generate the PDF using the rendered HTML
-    pisa_status = pisa.CreatePDF(content, dest=buffer)
-
-    # If PDF generation failed, return an error
-    if pisa_status.err:
-        return HttpResponse('PDF generation failed.', status=500)
-
-    # Set the appropriate PDF headers for download
-    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-    response['Content-Disposition'] = 'attachment; filename="daily_report.pdf"'
+@in_group_required('dealer-admin', 'wrs-admin')
+@require_GET
+def report_job_status(request, job_id):
+    from .jobs import report_path
+    job = accessible_report_job(request, job_id)
+    ready = job.state == 'completed' and report_path(job).is_file()
+    download = reverse('reports:report-job-download', args=[job.pk]) if ready else None
+    response = (JsonResponse({'state': job.state, 'label': job.get_state_display(),
+        'error': job.error, 'download_url': download}) if request.GET.get('format') == 'json'
+        else render(request, 'reports/export_status.html', {'job': job, 'download_url': download}))
     response['Cache-Control'] = 'private, no-store'
-
     return response
- 
+
+
+@in_group_required('dealer-admin', 'wrs-admin')
+@require_GET
+def download_report_job(request, job_id):
+    from .jobs import report_path
+    job = accessible_report_job(request, job_id)
+    if job.state != 'completed':
+        raise Http404
+    path = report_path(job)
+    if not path.is_file():
+        raise Http404
+    response = FileResponse(path.open('rb'), as_attachment=True, filename=f'report-{job.pk}.pdf', content_type='application/pdf')
+    response['Cache-Control'] = 'private, no-store'
+    return response
+
+
 def get_repair_orders_by_date(dealership_id, start_date): # THIS IS NO LONGER USED ----------------------------------------
     # Query HistoricalClaim by created_date (>= start_date)
-    claims = HistoricalClaim.objects.filter(dealership_id=dealership_id, created_date=start_date).prefetch_related(
+    claims = HistoricalClaim.objects.filter(dealership_id=dealership_id, created_date__date=start_date).select_related('ro_status').prefetch_related(
         Prefetch(
             'historicallinetable_set', 
-            queryset=HistoricalLineTable.objects.prefetch_related(
+            queryset=HistoricalLineTable.objects.select_related('claim_status').prefetch_related(
                 Prefetch('historicaljournal_set', queryset=HistoricalJournal.objects.all(), to_attr='journals')
             ),
             to_attr='lines'
@@ -495,7 +425,7 @@ def get_repair_orders_by_date(dealership_id, start_date): # THIS IS NO LONGER US
     for claim in claims:
         claim_data = {
             'repair_order': claim.repair_order,
-            'ro_status': claim.ro_status.name,
+            'ro_status': claim.ro_status.name if claim.ro_status else '',
             'lines': []
         }
 
@@ -596,7 +526,7 @@ class DailyReportsView(DealershipAccessMixin, View):
     def get(self, request, *args, **kwargs):
         dealership_id = kwargs.get('dealership_id')
         dealership = get_object_or_404(accessible_dealerships(self.request.user), pk=dealership_id)
-        start_date = datetime.now()
+        start_date = timezone.localdate()
 
         report = ReportService.generate_daily_report(dealership.id, start_date)
 
@@ -896,6 +826,8 @@ def list_report_files(request):
     folder_structure = []
 
     for dealership in sorted(os.listdir(base_dir)):
+        if dealership == 'jobs':
+            continue
         dealership_path = os.path.join(base_dir, dealership)
         if os.path.isdir(dealership_path):
             years = []
@@ -936,11 +868,25 @@ def download_report(request, relative_path):
     if not path.is_relative_to(root) or path.suffix.lower() != '.pdf' or not path.is_file():
         raise Http404
     folder = Path(relative_path).parts[0]
+    if folder == 'jobs':
+        raise Http404
     # Legacy filenames use dealership names; ambiguous folder names fail closed.
     matches = [dealer for dealer in Dealership.objects.all() if dealer.name.replace(' ', '_') == folder]
     if len(matches) != 1:
         raise Http404
     get_dealership(request.user, matches[0].pk)
     response = FileResponse(path.open('rb'), as_attachment=True, filename=path.name, content_type='application/pdf')
+    response['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@in_group_required('dealer-admin', 'wrs-admin')
+@require_GET
+def report_jobs(request):
+    from .models import ReportJob
+    jobs = (ReportJob.objects.filter(requested_by=request.user,
+        dealership__in=accessible_dealerships(request.user)).select_related('dealership').order_by('-created_at', '-id'))
+    page = Paginator(jobs, 25).get_page(request.GET.get('page'))
+    response = render(request, 'reports/export_list.html', {'page_obj': page})
     response['Cache-Control'] = 'private, no-store'
     return response

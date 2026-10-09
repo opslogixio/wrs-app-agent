@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 from accounts.models import CustomUser, Dealership
 from claim.models import Claim, RoStatus, ClaimType, Status, Discrepancy
@@ -42,3 +44,26 @@ class HistoricalJournal(models.Model):
 class dummyTable(models.Model):
     id = models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)
     name = models.CharField(max_length=50, verbose_name='line num', null=True, blank=True, default='1')
+
+class ReportJob(models.Model):
+    """Durable PDF export requests; documents are served only after authorization."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    dealership = models.ForeignKey(Dealership, on_delete=models.CASCADE)
+    requested_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    report_type = models.CharField(max_length=30, choices=[
+        (name, name) for name in ('Daily Report', 'Archived Report', 'Discrepancy Report', 'RA Report')
+    ])
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    state = models.CharField(max_length=12, default='queued', choices=[
+        ('queued', 'Queued'), ('running', 'Generating'), ('completed', 'Ready'), ('failed', 'Failed'),
+    ])
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    error = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+        indexes = [models.Index(fields=['state', 'created_at'], name='report_job_queue_idx')]

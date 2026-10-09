@@ -1,0 +1,9 @@
+<form method="post" action="{% url 'reports:report-export' %}" class="float-end me-5">
+  {% csrf_token %}
+  <input type="hidden" name="dealership" value="{{ dealership }}">
+  <input type="hidden" name="report_type" value="{{ report_type }}">
+  <input type="hidden" name="start_date" value="{% if report_type == 'Discrepancy Report' %}{{ start_date|date:'Y-m-d' }}{% else %}{{ start_date }}{% endif %}">
+  <input type="hidden" name="end_date" value="{{ end_date|date:'Y-m-d' }}">
+  <button class="btn btn-outline-success" type="submit">Export to PDF</button>
+</form>
+<a href="{% url 'reports:report-jobs' %}">My PDF exports</a>

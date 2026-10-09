@@ -17,7 +17,7 @@
           {% if user.is_authenticated %}
             {% for group in user.groups.all %}
               {% if group.name == "wrs-admin" %}
-                <a class="btn btn-outline-success float-end me-5" href="{% url 'reports:report-export' %}?dealership={{ dealership }}&start_date={{ start_date }}&report_type={{ report_type }}" role="button">Export to PDF</a>
+                {% include 'reports/export_button.html' %}
               {% endif %}
             {% endfor %}
           {% endif %}

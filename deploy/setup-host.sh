@@ -10,6 +10,8 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-dev build
 id wrs-app >/dev/null 2>&1 || useradd --system --home-dir /var/lib/wrs-app --shell /usr/sbin/nologin wrs-app
 install -d -m 0755 /opt/wrs-app /var/lib/wrs-app /var/lib/wrs-app/staticfiles
 install -d -m 0700 /etc/wrs-app
+if systemctl is-active --quiet wrs-report-worker; then systemctl stop wrs-report-worker; fi
+if systemctl is-active --quiet wrs-app; then systemctl stop wrs-app; fi
 rsync -a --exclude=.git --exclude=.venv --exclude=__pycache__ --exclude='*.pyc' --exclude='.env*' --exclude='*.log' --exclude=staticfiles "$DEPLOY_SOURCE/" /opt/wrs-app/
 python3 -m venv /opt/wrs-app/.venv
 /opt/wrs-app/.venv/bin/pip install -r /opt/wrs-app/requirements.lock.txt
@@ -38,7 +40,6 @@ else:
     p.write_text(text)
 PY
 systemctl enable --now mariadb
-if systemctl is-active --quiet wrs-app; then systemctl stop wrs-app; fi
 python3 - <<'PY'
 from pathlib import Path
 import subprocess
@@ -66,6 +67,7 @@ PY
 # Runtime connections can change data but cannot alter or drop the schema.
 mariadb -e "REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'wrs_app'@'127.0.0.1'; GRANT SELECT, INSERT, UPDATE, DELETE ON wrs_app.* TO 'wrs_app'@'127.0.0.1';"
 install -m 0644 /opt/wrs-app/deploy/wrs-app.service /etc/systemd/system/wrs-app.service
+install -m 0644 /opt/wrs-app/deploy/wrs-report-worker.service /etc/systemd/system/wrs-report-worker.service
 if [ ! -f /etc/letsencrypt/live/wrs.opslogix.io/fullchain.pem ]; then
     install -m 0644 /opt/wrs-app/deploy/wrs-agentic-http.nginx /etc/nginx/sites-available/wrs-agentic
     ln -sfn /etc/nginx/sites-available/wrs-agentic /etc/nginx/sites-enabled/wrs-agentic
@@ -86,7 +88,7 @@ install -m 0644 /opt/wrs-app/deploy/wrs-agentic.nginx /etc/nginx/sites-available
 ln -sfn /etc/nginx/sites-available/wrs-agentic /etc/nginx/sites-enabled/wrs-agentic
 nginx -t
 systemctl daemon-reload
-systemctl enable --now wrs-app nginx
-systemctl restart wrs-app
+systemctl enable --now wrs-app wrs-report-worker nginx
+systemctl restart wrs-app wrs-report-worker
 systemctl reload nginx
-systemctl is-active mariadb wrs-app nginx
+systemctl is-active mariadb wrs-app wrs-report-worker nginx

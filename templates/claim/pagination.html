@@ -1,0 +1,12 @@
+<nav class="my-3" aria-label="Claim queue pages">
+  <p>{{ paginator.count }} claims. Page {{ page_obj.number }} of {{ paginator.num_pages }}. Tables sort the current page.</p>
+  {% if page_obj.has_previous %}
+    <a class="btn btn-outline-primary" href="?{{ pagination_query }}&amp;page=1">First</a>
+    <a class="btn btn-outline-primary" href="?{{ pagination_query }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>
+  {% endif %}
+  {% if page_obj.has_next %}
+    <a class="btn btn-outline-primary" href="?{{ pagination_query }}&amp;page={{ page_obj.next_page_number }}">Next</a>
+    <a class="btn btn-outline-primary" href="?{{ pagination_query }}&amp;page={{ paginator.num_pages }}">Last</a>
+  {% endif %}
+  {% if not paginator.count %}<p>No claims match this queue.</p>{% endif %}
+</nav>

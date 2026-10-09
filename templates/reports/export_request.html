@@ -1,0 +1,16 @@
+{% extends 'partials/base.html' %}
+{% block contents %}
+<div class="card"><div class="card-body">
+  <h1>Export {{ report_type }}</h1>
+  <p>{{ dealership }}{% if start_date %} — {{ start_date }}{% endif %}{% if end_date %} through {{ end_date }}{% endif %}</p>
+  <p>Your PDF will be generated in the background. You can continue using the app while it processes.</p>
+  {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="dealership" value="{{ dealership }}">
+    <input type="hidden" name="report_type" value="{{ report_type }}">
+    <input type="hidden" name="start_date" value="{{ start_date|date:'Y-m-d' }}">
+    <input type="hidden" name="end_date" value="{{ end_date|date:'Y-m-d' }}">
+    <button class="btn btn-primary" type="submit">Generate PDF</button>
+  </form>
+</div></div>
+{% endblock contents %}

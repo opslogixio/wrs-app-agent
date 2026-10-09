@@ -1,0 +1,12 @@
+{% extends 'partials/base.html' %}
+{% block contents %}
+<div class="card"><div class="card-body">
+  <h1>My PDF exports</h1>
+  <p>Downloads are kept for seven days.</p>
+  <ul>{% for job in page_obj %}
+    <li><a href="{% url 'reports:report-job' job.pk %}">{{ job.report_type }} — {{ job.dealership }} — {{ job.created_at }}</a>: {{ job.get_state_display }}</li>
+  {% empty %}<li>No recent exports.</li>{% endfor %}</ul>
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+</div></div>
+{% endblock contents %}

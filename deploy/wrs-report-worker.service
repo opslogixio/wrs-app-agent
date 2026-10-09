@@ -1,0 +1,28 @@
+[Unit]
+Description=WRS background PDF report worker
+After=network.target mariadb.service
+Requires=mariadb.service
+
+[Service]
+User=wrs-app
+Group=wrs-app
+WorkingDirectory=/opt/wrs-app
+EnvironmentFile=/etc/wrs-app/wrs-app.env
+ExecStart=/opt/wrs-app/.venv/bin/python manage.py process_report_jobs
+RestartSec=5
+TimeoutStopSec=120
+RuntimeMaxSec=3600
+Restart=always
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/wrs-app/static/upload /opt/wrs-app/static/daily-report-pdf /opt/wrs-app/django_errors.log
+RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

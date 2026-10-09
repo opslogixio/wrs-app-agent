@@ -15,7 +15,7 @@
       <div class="card-body">
         <div class="invoice-title">
           {% if pdf_exists %}
-          <a class="btn btn-outline-success float-end me-5" href="{{ pdf_url }}" role="button">View PDF</a>
+          {% include 'reports/export_button.html' %}
           {% else %}
           <a class="btn btn-outline-success float-end me-5" href="{% url 'reports:report-export' %}?dealership={{ dealership }}&start_date={{ start_date }}&report_type={{ report_type }}" role="button">Export to PDF</a>
           {% endif %}

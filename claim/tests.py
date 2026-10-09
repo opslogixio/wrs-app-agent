@@ -213,3 +213,71 @@ class SecurityBaselineTests(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(Claim.objects.count(), before)
         self.assertFalse(Journal.objects.exists())
+
+
+class QueuePaginationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.dealer = Dealership.objects.create(name='Queue Dealer')
+        cls.foreign = Dealership.objects.create(name='Foreign')
+        cls.user = get_user_model().objects.create_user(email='queue@example.invalid')
+        cls.user.groups.add(Group.objects.create(name='dealer-admin'))
+        cls.user.dealership.add(cls.dealer)
+        cls.open = RoStatus.objects.create(name='Open')
+        cls.bodyshop = Tag.objects.create(name='Bodyshop')
+        cls.statuses = {name: Status.objects.create(name=name) for name in ('New', 'Pending', 'Rework', 'Requires Attention')}
+        for number in range(51):
+            claim = Claim.objects.create(dealership=cls.dealer, repair_order=1000 + number, ro_status=cls.open)
+            if number % 2 == 0:
+                claim.claim_tag.add(cls.bodyshop)
+            for status in cls.statuses.values():
+                for line_num in ('1', '2'):
+                    LineTable.objects.create(claim=claim, dealership=cls.dealer, claim_status=status,
+                        start_date=date(2020, 1, 1), line_num=line_num, claim_total='12.50')
+        unrelated = Claim.objects.create(dealership=cls.foreign, repair_order=9999)
+        LineTable.objects.create(claim=unrelated, dealership=cls.foreign, claim_status=cls.statuses['Pending'])
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_every_queue_paginates_distinct_claims_and_preserves_scope(self):
+        for route, status in (('claim-queue', 'Rework'), ('new-claim-queue', 'New'),
+            ('pending-claim-queue', 'Pending'), ('rework-claim-queue', 'Rework'),
+            ('ra-claim-queue', 'Requires Attention'), ('ra-claim-queue', 'Aging')):
+            with self.subTest(route=route, status=status):
+                url = reverse('claim:' + route, args=[status])
+                response = self.client.get(url, {'dealership_id': self.dealer.pk})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.context['paginator'].count, 51)
+                claims = list(response.context['object_list'])
+                self.assertEqual(len(claims), 50)
+                self.assertEqual(len({claim.pk for claim in claims}), 50)
+                self.assertContains(response, f'dealership_id={self.dealer.pk}&amp;page=2')
+                second = self.client.get(url, {'dealership_id': self.dealer.pk, 'page': 2})
+                self.assertEqual(len(second.context['object_list']), 1)
+                self.assertFalse({c.pk for c in second.context['object_list']} & {c.pk for c in claims})
+                self.assertEqual(self.client.get(url, {'dealership_id': self.foreign.pk}).status_code, 404)
+
+    def test_bodyshop_and_regular_lines_render_ages_and_amounts(self):
+        for route in ('pending-claim-queue', 'rework-claim-queue'):
+            status = 'Pending' if route.startswith('pending') else 'Rework'
+            response = self.client.get(reverse('claim:' + route, args=[status]), {'dealership_id': self.dealer.pk})
+            self.assertContains(response, '$12.50', count=100)
+            self.assertContains(response, 'January 01, 2020', count=100)
+
+    def test_queue_data_queries_are_bounded_and_foreign_lines_are_excluded(self):
+        from .views import PendingClaimQueueListView
+        from django.test import RequestFactory
+        claim = Claim.objects.filter(dealership=self.dealer).first()
+        LineTable.objects.create(claim=claim, dealership=self.foreign, claim_status=self.statuses['Pending'])
+        request = RequestFactory().get('/', {'dealership_id': self.dealer.pk})
+        request.user = self.user
+        view = PendingClaimQueueListView()
+        view.setup(request, filter_request='Pending')
+        view.authorized_dealership = self.dealer
+        with self.assertNumQueries(3):
+            claims = list(view.get_queryset()[:50])
+            for claim in claims:
+                self.assertTrue(all(line.dealership_id == self.dealer.pk for line in claim.linetable_set.all()))
+                _ = claim.ro_status.name
+                list(claim.claim_tag.all())

@@ -685,7 +685,7 @@ class CompletionDateRequirementTests(TestCase):
         self.line.refresh_from_db()
         self.assertEqual(datetime_input(self.line.start_date), payload['start_date'])
         response = self.client.get(self.edit_url)
-        self.assertEqual(self.fields(response, self.line.pk)['start_date']['value'], payload['start_date'])
+        self.assertEqual(self.fields(response, self.line.pk)['start_date'].get('value'), payload['start_date'])
 
 
 

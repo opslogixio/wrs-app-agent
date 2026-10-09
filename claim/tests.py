@@ -308,3 +308,100 @@ class QueuePaginationTests(TestCase):
                 self.assertTrue(all(line.dealership_id == self.dealer.pk for line in claim.linetable_set.all()))
                 _ = claim.ro_status.name
                 list(claim.claim_tag.all())
+
+
+class BodyshopQueueContextTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from datetime import timedelta
+        cls.dealer = Dealership.objects.create(name='Bodyshop Context')
+        cls.foreign = Dealership.objects.create(name='Foreign Context')
+        cls.user = get_user_model().objects.create_user(email='bodyshop-context@example.invalid')
+        cls.user.groups.add(Group.objects.create(name='dealer-admin'))
+        cls.user.dealership.add(cls.dealer)
+        cls.admin = get_user_model().objects.create_superuser(email='bodyshop-admin@example.invalid')
+        cls.open = RoStatus.objects.create(name='Open')
+        cls.bodyshop = Tag.objects.create(name='Bodyshop')
+        cls.warranty = Tag.objects.create(name='Warranty')
+        cls.claims = []
+        cls.statuses = {name: Status.objects.create(name=name) for name in ('New', 'Pending', 'Rework', 'Requires Attention', 'Paid')}
+        for number, bodyshop in ((70001, True), (70002, False)):
+            claim = Claim.objects.create(dealership=cls.dealer, repair_order=number, ro_status=cls.open)
+            claim.claim_tag.add(cls.warranty)
+            if bodyshop:
+                claim.claim_tag.add(cls.bodyshop)
+            cls.claims.append(claim)
+            Journal.objects.create(claim=claim, user=cls.user, comment=f'Initial comment for {number}')
+            for index, (name, status) in enumerate(cls.statuses.items(), 1):
+                LineTable.objects.create(claim=claim, dealership=cls.dealer, claim_status=status,
+                    line_num=f'{index}', claim_total='23.45', start_date=date.today() - timedelta(days=100))
+            LineTable.objects.create(claim=claim, dealership=cls.dealer, claim_status=cls.statuses['Requires Attention'],
+                line_num='recent-attention', start_date=date.today() - timedelta(days=10), claim_total='42.10')
+            LineTable.objects.create(claim=claim, dealership=cls.dealer, claim_status=cls.statuses['Requires Attention'],
+                line_num='undated-attention', start_date=None, claim_total='52.10')
+            LineTable.objects.create(claim=claim, dealership=cls.foreign, claim_status=cls.statuses['Pending'],
+                line_num='foreign-line', claim_total='999')
+        foreign_claim = Claim.objects.create(dealership=cls.foreign, repair_order=79999, ro_status=cls.open)
+        foreign_claim.claim_tag.add(cls.bodyshop)
+        LineTable.objects.create(claim=foreign_claim, dealership=cls.foreign, claim_status=cls.statuses['Pending'])
+
+    def test_each_bodyshop_and_regular_table_matches_its_context(self):
+        from .test_helpers import QueueTableParser
+        queues = (
+            ('claim-queue', 'Rework', 'other_claims', False),
+            ('new-claim-queue', 'New', 'new_claims', False),
+            ('pending-claim-queue', 'Pending', 'pending_claims', True),
+            ('rework-claim-queue', 'Rework', 'rework_claims', True),
+            ('ra-claim-queue', 'Requires Attention', 'ra_claims', True),
+            ('ra-claim-queue', 'Aging', 'ra_claims', True),
+        )
+        for user in (self.user, self.admin):
+            self.client.force_login(user)
+            for route, status, section, has_lines in queues:
+                with self.subTest(user=user.pk, queue=status, route=route):
+                    response = self.client.get(reverse('claim:' + route, args=[status]), {'dealership_id': self.dealer.pk})
+                    self.assertEqual(response.status_code, 200)
+                    tables = QueueTableParser(response.content.decode()).tables
+                    self.assertEqual(set(tables), {'bodyshopTable', 'claimsTable'})
+                    self.assertEqual(response.content.decode().count('js/table-sort.js'), 1)
+                    for table, context_key, expected_claim in (
+                        ('bodyshopTable', 'bodyshop_claims', self.claims[0]),
+                        ('claimsTable', section, self.claims[1]),
+                    ):
+                        context = response.context[context_key]
+                        self.assertEqual(len(context), 1)
+                        claim = context[0]['claim'] if has_lines else context[0]
+                        self.assertEqual(claim.pk, expected_claim.pk)
+                        rows = tables[table]
+                        count = 3 if status == 'Requires Attention' else 1
+                        self.assertEqual(len(rows), count)
+                        update_route = 'claim-update' if user.is_superuser else 'dealer-claim-update'
+                        link = reverse('claim:' + update_route, args=[claim.pk, self.dealer.pk])
+                        for row in rows:
+                            self.assertEqual(row['cells'][0], str(claim.repair_order))
+                            self.assertEqual(row['links'], [link])
+                        if has_lines:
+                            entries = context[0]['lines']
+                            self.assertEqual({row['cells'][1] for row in rows}, {entry['line'].line_num for entry in entries})
+                            expected_status = 'Requires Attention' if status == 'Aging' else status
+                            for entry, row in zip(entries, rows):
+                                self.assertEqual(entry['line'].claim_status.name, expected_status)
+                                self.assertEqual(entry['line'].dealership_id, self.dealer.pk)
+                                self.assertEqual(row['cells'][4], str(entry['claim_age']) if entry['claim_age'] is not None else 'None')
+                            if status == 'Aging':
+                                self.assertEqual(entries[0]['line'].line_num, '4')
+                        elif route == 'new-claim-queue':
+                            self.assertIn(f'Initial comment for {claim.repair_order}', rows[0]['cells'][-1])
+
+    def test_bodyshop_section_is_hidden_when_no_matching_bodyshop_claims_exist(self):
+        self.client.force_login(self.user)
+        self.claims[0].claim_tag.clear()
+        from .test_helpers import QueueTableParser
+        for route, status in (('claim-queue', 'Rework'), ('new-claim-queue', 'New'),
+            ('pending-claim-queue', 'Pending'), ('rework-claim-queue', 'Rework'),
+            ('ra-claim-queue', 'Requires Attention'), ('ra-claim-queue', 'Aging')):
+            with self.subTest(route=route, status=status):
+                response = self.client.get(reverse('claim:' + route, args=[status]), {'dealership_id': self.dealer.pk})
+                self.assertFalse(response.context['bodyshop'])
+                self.assertEqual(response.context['bodyshop_claims'], [])
+                self.assertNotIn('bodyshopTable', QueueTableParser(response.content.decode()).tables)

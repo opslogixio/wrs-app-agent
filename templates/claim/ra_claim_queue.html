@@ -43,9 +43,9 @@
     <div class="card">
       <div class="card-body">
         <div class="table-responsive">
-          <script src="{% static 'js/table-sort.js' %}"></script>
+
           <!-- Table for Bodyshop claims -->
-          <h4>Bodyshop Claims</h4>             
+          <h4>Bodyshop Claims</h4> 
           <table class="table table-hover table-bordered table-sort table-arrows" id="bodyshopTable" width="100%" cellspacing="0">
             <thead>
               <tr>
@@ -67,8 +67,8 @@
                       {{ claim_data.claim.repair_order }}
                     </a>
                   </td>
-                
-                
+    
+    
 
                   <td>{{ line_info.line.line_num }}</td>
                   <td>{{ claim_data.claim.ro_status }}</td>
@@ -96,8 +96,8 @@
       <div class="card-body">
         <h4>Claims</h4>
         <div class="table-responsive">
-          <script src="{% static 'js/table-sort.js' %}"></script>            
-          <table class="table table-hover table-bordered table-sort table-arrows" id="bodyshopTable" width="100%" cellspacing="0">
+
+          <table class="table table-hover table-bordered table-sort table-arrows" id="claimsTable" width="100%" cellspacing="0">
             <thead>
               <tr>
                 <th class="order-by-desc">Repair Order</th>
@@ -140,6 +140,7 @@
 {% include 'claim/pagination.html' %}
 {% endblock contents %}
 {% block javascript %}
+<script src="{% static 'js/table-sort.js' %}"></script>
         <!-- JAVASCRIPT 
         <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
         <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->

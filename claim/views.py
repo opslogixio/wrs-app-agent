@@ -215,6 +215,7 @@ class PaginatedClaimQueue(DealershipAccessMixin, ListView):
             }
         lines = LineTable.objects.filter(
             dealership=self.authorized_dealership,
+            **{key.removeprefix('linetable__'): value for key, value in filters.items()},
         ).select_related('claim_status', 'claim_type', 'discrepancy').order_by('pk')
         queryset = (Claim.objects.filter(dealership=self.authorized_dealership,
                 linetable__dealership=self.authorized_dealership, **filters)

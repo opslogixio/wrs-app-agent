@@ -43,7 +43,6 @@
           <div class="card-body">
             
             <div class="table-responsive">
-              <script src="{% static 'js/table-sort.js' %}"></script>
               {% if bodyshop %}
                 <!-- Table for Bodyshop claims -->
                 <h4>Bodyshop Claims</h4>             
@@ -88,11 +87,10 @@
             </div>
             <h4>Claims</h4>
             <div class="table-responsive">
-              <script src="{% static 'js/table-sort.js' %}"></script>
               
                 <!-- Table for Bodyshop claims -->
                               
-                <table class="table table-hover table-bordered table-sort table-arrows" id="bodyshopTable" width="100%" cellspacing="0">
+                <table class="table table-hover table-bordered table-sort table-arrows" id="claimsTable" width="100%" cellspacing="0">
                   <thead>
                     <tr>
                       <th class = "order-by-desc">Repair Order</th>
@@ -137,6 +135,7 @@
 {% include 'claim/pagination.html' %}
 {% endblock contents %}
 {% block javascript %}
+<script src="{% static 'js/table-sort.js' %}"></script>
         <!-- JAVASCRIPT 
         <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
         <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->

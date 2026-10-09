@@ -1,3 +1,4 @@
+from core.dates import as_datetime
 from .services import build_dashboard
 from decorators.access import in_group_required, get_dealership, safe_return_url
 from django.db.models.functions import ExtractMonth
@@ -230,7 +231,7 @@ def get_charts_data(request, dealership_id):
     current_year = now().year
     rows = (LineTable.objects.filter(
         dealership=dealership, claim_status__name='Paid',
-        paid_date__gte=date(current_year, 1, 1), paid_date__lt=date(current_year + 1, 1, 1),
+        paid_date__gte=as_datetime(date(current_year, 1, 1)), paid_date__lt=as_datetime(date(current_year + 1, 1, 1)),
     ).order_by().annotate(month=ExtractMonth('paid_date'))
         .values('claim_type_id', 'month').annotate(total=Sum('claim_total')))
     totals = {(row['claim_type_id'], row['month']): row['total'] or 0 for row in rows}

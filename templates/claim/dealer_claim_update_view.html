@@ -55,7 +55,7 @@
                 </form>
               </div>
               <div class="col-6 mb-3">
-                <label for="id_createdDate" class="form-label">{{ created_date }}</label>
+                <label for="id_createdDate" class="form-label">{{ created_date|date:'Y-m-d H:i:s T' }}</label>
               </div>
             </div>
             <!--

@@ -336,9 +336,9 @@ class BodyshopQueueContextTests(TestCase):
             Journal.objects.create(claim=claim, user=cls.user, comment=f'Initial comment for {number}')
             for index, (name, status) in enumerate(cls.statuses.items(), 1):
                 LineTable.objects.create(claim=claim, dealership=cls.dealer, claim_status=status,
-                    line_num=f'{index}', claim_total='23.45', start_date=date.today() - timedelta(days=100))
+                    line_num=f'{index}', claim_total='23.45', start_date=as_datetime(date.today() - timedelta(days=100)))
             LineTable.objects.create(claim=claim, dealership=cls.dealer, claim_status=cls.statuses['Requires Attention'],
-                line_num='recent-attention', start_date=date.today() - timedelta(days=10), claim_total='42.10')
+                line_num='recent-attention', start_date=as_datetime(date.today() - timedelta(days=10)), claim_total='42.10')
             LineTable.objects.create(claim=claim, dealership=cls.dealer, claim_status=cls.statuses['Requires Attention'],
                 line_num='undated-attention', start_date=None, claim_total='52.10')
             LineTable.objects.create(claim=claim, dealership=cls.foreign, claim_status=cls.statuses['Pending'],

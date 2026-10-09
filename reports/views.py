@@ -374,14 +374,14 @@ def report_job_status(request, job_id):
 @in_group_required('dealer-admin', 'wrs-admin')
 @require_GET
 def download_report_job(request, job_id):
-    from .jobs import report_path
+    from .jobs import report_path, report_filename
     job = accessible_report_job(request, job_id)
     if job.state != 'completed':
         raise Http404
     path = report_path(job)
     if not path.is_file():
         raise Http404
-    response = FileResponse(path.open('rb'), as_attachment=True, filename=f'report-{job.pk}.pdf', content_type='application/pdf')
+    response = FileResponse(path.open('rb'), as_attachment=True, filename=report_filename(job), content_type='application/pdf')
     stream = response.streaming_content
     def consume_once():
         try:

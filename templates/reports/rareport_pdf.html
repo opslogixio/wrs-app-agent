@@ -20,7 +20,7 @@
             border: 1px solid #000; /* Add borders to table cells */
             padding: 3px;
             text-align: left;
-            white-space: nowrap;
+            white-space: normal;
         }
 
         /* Set the "Comments" cell to have a larger width */
@@ -50,35 +50,36 @@
         img.logo {
             margin-left: 30px; /* Adjust the margin as needed */
         }
+            .report-header { margin-bottom: 20px; }
+        .report-header td { border: none; padding: 0; vertical-align: middle; }
+        .report-header h1 { margin: 0; }
     </style>
 </head>
 <body>
    
     
-    <div class="container">
-        <h1>{{ report_type }} for {{ dealership }}</h1>
-        <img class="logo" src="{% static 'images/report-web.png' %}" alt="" height="50" align="right">
-    </div>
+    <table class="report-header" width="100%">
+        <tr><td width="82%"><h1>{{ report_type }} for {{ dealership }}</h1></td>
+            <td width="18%" align="right"><img src="{% static 'images/report-web.png' %}" width="130" height="50" alt="Warranty Revenue Services"></td></tr>
+    </table>
         {% if message %}
           <p>{{ message }}</p>
         {% else %}
 
         <table width="100%">
-            <thead>
-              <tr>
-                <th class="order-by-desc">Repair Order</th>
-                <th>Claim Line</th>
-                <th>RO Status</th>
-                <th>Repair Completion Date</th>
-                <th>Claim Age Days</th>
-                <th>Line Total</th>
-                <th>Comments</th>
-              </tr>
-            </thead>
+            <thead><tr>
+                <th width="7%">Repair<br>Order</th>
+                <th width="5%">Claim<br>Line</th>
+                <th width="7%">RO<br>Status</th>
+                <th width="7%">Repair<br>Completion<br>Date</th>
+                <th width="7%">Claim<br>Age<br>Days</th>
+                <th width="7%">Line<br>Total</th>
+                <th width="60%">Comments</th>
+            </tr></thead>
             <tbody>
               {% for claim_data in report.ra_claims %}
                 <tr>
-                  <td>
+                  <td colspan="7">
                     {{ claim_data.claim.repair_order }}
                   </td>
                 </tr>

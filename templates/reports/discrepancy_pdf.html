@@ -20,7 +20,7 @@
             border: 1px solid #000; /* Add borders to table cells */
             padding: 3px;
             text-align: left;
-            white-space: nowrap;
+            white-space: normal;
         }
 
         /* Set the "Comments" cell to have a larger width */
@@ -50,15 +50,18 @@
         img.logo {
             margin-left: 30px; /* Adjust the margin as needed */
         }
+            .report-header { margin-bottom: 20px; }
+        .report-header td { border: none; padding: 0; vertical-align: middle; }
+        .report-header h1 { margin: 0; }
     </style>
 </head>
 <body>
    
     
-    <div class="container">
-        <h1>Reconciliation Report for {{ dealership }} - Report Date: {{ start_date }} - {{ end_date}}</h1>
-        <img class="logo" src="{% static 'images/report-web.png' %}" alt="" height="50" align="right">
-    </div>
+    <table class="report-header" width="100%">
+        <tr><td width="82%"><h1>Reconciliation Report for {{ dealership }} - Report Date: {{ start_date }} - {{ end_date}}</h1></td>
+            <td width="18%" align="right"><img src="{% static 'images/report-web.png' %}" width="130" height="50" alt="Warranty Revenue Services"></td></tr>
+    </table>
  
         {% if message %}
           <p>{{ message }}</p>

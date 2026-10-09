@@ -63,6 +63,12 @@ def report_path(job):
     return Path(settings.REPORT_ROOT) / 'jobs' / f'{job.pk}.pdf'
 
 
+def report_filename(job):
+    from django.utils.text import slugify
+    day = job.start_date or timezone.localdate(job.created_at)
+    return f"{slugify(job.dealership.name)}-{slugify(job.report_type)}-{day.isoformat()}.pdf"
+
+
 def local_asset(uri, relative_uri):
     """Resolve local static files only; never fetch URLs supplied by PDF content."""
     parsed = urlsplit(uri)

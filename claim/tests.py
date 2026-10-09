@@ -636,7 +636,7 @@ class CompletionDateRequirementTests(TestCase):
 
     def test_completion_date_endpoint_cannot_clear_required_dates(self):
         LineTable.objects.filter(pk=self.line.pk).update(claim_status=self.statuses['Requires Attention'], start_date=date(2026, 10, 8))
-        response = self.client.post(reverse('claim:start-date'), {'line_id': self.line.pk, 'start_date': ''})
+        response = self.client.post(reverse('claim:start-date', args=[self.line.pk]), {'start_date': ''})
         self.assertEqual(response.status_code, 400)
         self.line.refresh_from_db()
         self.assertEqual(self.line.start_date, date(2026, 10, 8))

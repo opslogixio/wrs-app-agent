@@ -1233,11 +1233,11 @@ def delete_line(request, line_id):
 
 @in_group_required('wrs-admin')
 @require_POST
-def add_start_date(request):
-    line_id = positive_id(request.POST.get('line_id'))
+@transaction.atomic
+def add_start_date(request, line_id):
     start_date = request.POST.get('start_date')
 
-    line = get_object_or_404(lines_for_user(request.user), id=line_id)
+    line = get_object_or_404(lines_for_user(request.user).select_for_update(), id=line_id)
     from django import forms
     try:
         line.start_date = forms.DateField(required=False).clean(start_date)

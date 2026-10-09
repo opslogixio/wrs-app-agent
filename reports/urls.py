@@ -13,7 +13,6 @@ urlpatterns = [
     path('discrepancy_report/', DiscrepancyReportView.as_view(), name='discrepancy-report'),
     path('ra_report/<str:filter_request>', RaReportView.as_view(), name='ra-report'),
     path('ro_status', update_ro_status, name='ro-status'),
-    path('jobs/', name='report-jobs'),
     path('jobs/<uuid:job_id>/', report_job_status, name='report-job'),
     path('jobs/<uuid:job_id>/download/', download_report_job, name='report-job-download'),
     path('report_export/', export_to_pdf, name='report-export'),

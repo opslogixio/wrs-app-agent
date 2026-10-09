@@ -42,5 +42,31 @@ with transaction.atomic():
     assert client.get('/admin/').status_code == 200
     dashboard = client.get(response['Location'])
     assert dashboard.status_code == 200, dashboard.status_code
+    from io import BytesIO
+    from PIL import Image
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from django.urls import reverse
+    from claim.models import Claim, PdfFile
+    claim = Claim.objects.filter(dealership__isnull=False).first()
+    if claim:
+        for extension, format, mime in (('png', 'PNG', 'image/png'), ('jpeg', 'JPEG', 'image/jpeg'),
+                ('jpg', 'JPEG', 'image/jpeg'), ('gif', 'GIF', 'image/gif')):
+            buffer = BytesIO()
+            Image.new('RGB', (2, 2), 'blue').save(buffer, format=format)
+            content = buffer.getvalue()
+            name = f'deployment-check-{secrets.token_hex(8)}.{extension}'
+            file = None
+            try:
+                response = client.post(reverse('claim:upload-pdf'), {'claim_id': claim.pk,
+                    'pdf_file': SimpleUploadedFile(name, content)})
+                file = PdfFile.objects.filter(claim=claim, pdf_file__endswith=name).first()
+                assert response.status_code == 302 and file is not None, (extension, response.status_code)
+                response = client.get(reverse('claim:download-pdf', args=[file.pk]))
+                assert response.status_code == 200 and response['Content-Type'] == mime
+                assert b''.join(response.streaming_content) == content
+            finally:
+                if file:
+                    file.pdf_file.storage.delete(file.pdf_file.name)
+        print('PNG, JPEG, JPG, and GIF upload/download checks passed; temporary files deleted.')
     transaction.set_rollback(True)
 print('Login page, redirects, authenticated admin, and dashboard passed; test records rolled back.')

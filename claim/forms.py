@@ -37,7 +37,9 @@ class JournalForm(forms.ModelForm):
         }
 
 class PdfFileForm(forms.ModelForm):
-    pdf_file = forms.FileField(label='Upload claim file (PDF or image)', required=False, validators=[validate_claim_file])
+    pdf_file = forms.FileField(label='Upload claim file (PDF or image)', required=False, validators=[validate_claim_file],
+        widget=forms.ClearableFileInput(attrs={'accept': '.pdf,.png,.jpeg,.jpg,.gif'}),
+        help_text='PDF, PNG, JPEG/JPG, or GIF; up to 10 MB. Images: up to 20 million pixels.')
 
     class Meta:
         model = PdfFile
@@ -117,7 +119,9 @@ class ClaimLineUpdateForm(forms.ModelForm):
     discrepancy_other = forms.DecimalField(max_digits=10, decimal_places=2, required=False)
     comment = forms.CharField(widget=forms.Textarea, required=False)
     pdf_name = forms.CharField(max_length=100, required=False)
-    pdf_file = forms.FileField(required=False, validators=[validate_claim_file])
+    pdf_file = forms.FileField(label='Upload claim file (PDF or image)', required=False, validators=[validate_claim_file],
+        widget=forms.ClearableFileInput(attrs={'accept': '.pdf,.png,.jpeg,.jpg,.gif'}),
+        help_text='PDF, PNG, JPEG/JPG, or GIF; up to 10 MB. Images: up to 20 million pixels.')
 
     class Meta:
         model = Claim
@@ -230,7 +234,9 @@ class ReportsForm(forms.Form):
 ### LINE VIEW FORMS #############
 
 class LinePdfFileForm(forms.ModelForm):
-    pdf_file = forms.FileField(label='Upload claim file (PDF or image)', validators=[validate_claim_file])
+    pdf_file = forms.FileField(label='Upload claim file (PDF or image)', validators=[validate_claim_file],
+        widget=forms.ClearableFileInput(attrs={'accept': '.pdf,.png,.jpeg,.jpg,.gif'}),
+        help_text='PDF, PNG, JPEG/JPG, or GIF; up to 10 MB. Images: up to 20 million pixels.')
 
     class Meta:
         model = PdfFile

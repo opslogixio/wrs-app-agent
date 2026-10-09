@@ -322,7 +322,8 @@ class ReportTaskTests(TestCase):
         Journal.objects.filter(pk=old.pk).update(created_date=as_datetime(today - timedelta(days=2)))
         first = Journal.objects.create(claim=self.claim, line=self.line, user=self.admin, comment='Latest first')
         second = Journal.objects.create(claim=self.claim, line=self.line, user=self.admin, comment='Latest second <unsafe>')
-        Journal.objects.filter(pk__in=[first.pk, second.pk]).update(created_date=as_datetime(today - timedelta(days=1)))
+        Journal.objects.filter(pk=first.pk).update(created_date=as_datetime(today - timedelta(days=1)) + timedelta(hours=8))
+        Journal.objects.filter(pk=second.pk).update(created_date=as_datetime(today - timedelta(days=1)) + timedelta(hours=23, minutes=59))
         Journal.objects.create(claim=self.claim, line=self.line, user=self.user, comment='Exclude dealer comment today')
         report = ReportService.generate_ra_report(self.dealer.pk, 'Requires Attention')
         text = report['ra_claims'][0]['lines'][0]['comments']

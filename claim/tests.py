@@ -676,6 +676,18 @@ class CompletionDateRequirementTests(TestCase):
                 self.assertEqual(self.line.claim_status, self.statuses['New'])
         self.assertFalse(Journal.objects.exists())
 
+    def test_completion_timestamp_is_saved_and_rendered_without_losing_time(self):
+        from core.dates import datetime_input
+        payload = self.payload('Pending')
+        payload['start_date'] = '2026-10-08T16:42:37'
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, 302)
+        self.line.refresh_from_db()
+        self.assertEqual(datetime_input(self.line.start_date), payload['start_date'])
+        response = self.client.get(self.edit_url)
+        self.assertEqual(self.fields(response, self.line.pk)['start_date']['value'], payload['start_date'])
+
+
 
 class RepairOrderSearchTests(TestCase):
     setUpTestData = classmethod(SecurityBaselineTests.setUpTestData.__func__)

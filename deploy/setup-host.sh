@@ -6,7 +6,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 DEPLOY_SOURCE=$(cd "$(dirname "$0")/.." && pwd)
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-dev build-essential pkg-config default-libmysqlclient-dev mariadb-server nginx rsync
+DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-dev build-essential pkg-config default-libmysqlclient-dev mariadb-server nginx rsync certbot python3-certbot-nginx
 id wrs-app >/dev/null 2>&1 || useradd --system --home-dir /var/lib/wrs-app --shell /usr/sbin/nologin wrs-app
 install -d -m 0755 /opt/wrs-app /var/lib/wrs-app /var/lib/wrs-app/staticfiles
 install -d -m 0700 /etc/wrs-app
@@ -38,6 +38,7 @@ else:
     p.write_text(text)
 PY
 systemctl enable --now mariadb
+if systemctl is-active --quiet wrs-app; then systemctl stop wrs-app; fi
 python3 - <<'PY'
 from pathlib import Path
 import subprocess
@@ -62,7 +63,25 @@ for args in (['check'], ['migrate', '--noinput'], ['collectstatic', '--noinput']
     subprocess.run(['runuser', '-u', 'wrs-app', '--', '/opt/wrs-app/.venv/bin/python', 'manage.py', *args], cwd='/opt/wrs-app', env=env, check=True)
 subprocess.run(['runuser', '-u', 'wrs-app', '--', '/opt/wrs-app/.venv/bin/python', 'deploy/check_application.py'], cwd='/opt/wrs-app', env=env, check=True)
 PY
+# Runtime connections can change data but cannot alter or drop the schema.
+mariadb -e "REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'wrs_app'@'127.0.0.1'; GRANT SELECT, INSERT, UPDATE, DELETE ON wrs_app.* TO 'wrs_app'@'127.0.0.1';"
 install -m 0644 /opt/wrs-app/deploy/wrs-app.service /etc/systemd/system/wrs-app.service
+if [ ! -f /etc/letsencrypt/live/wrs.opslogix.io/fullchain.pem ]; then
+    install -m 0644 /opt/wrs-app/deploy/wrs-agentic-http.nginx /etc/nginx/sites-available/wrs-agentic
+    ln -sfn /etc/nginx/sites-available/wrs-agentic /etc/nginx/sites-enabled/wrs-agentic
+    nginx -t
+    systemctl enable --now nginx
+    systemctl reload nginx
+    certbot certonly --webroot -w /var/www/html -d wrs.opslogix.io --non-interactive --agree-tos --email poit@opslogix.io
+fi
+python3 - <<'TLSENV'
+from pathlib import Path
+p = Path('/etc/wrs-app/wrs-app.env')
+lines = [line for line in p.read_text().splitlines() if not line.startswith(('DJANGO_HTTPS=', 'DJANGO_CSRF_TRUSTED_ORIGINS='))]
+lines.extend(['DJANGO_HTTPS=true', 'DJANGO_CSRF_TRUSTED_ORIGINS=https://wrs.opslogix.io'])
+p.write_text('\n'.join(lines) + '\n')
+TLSENV
+install -m 0755 /opt/wrs-app/deploy/renew-certificate.sh /etc/letsencrypt/renewal-hooks/deploy/wrs-nginx-reload
 install -m 0644 /opt/wrs-app/deploy/wrs-agentic.nginx /etc/nginx/sites-available/wrs-agentic
 ln -sfn /etc/nginx/sites-available/wrs-agentic /etc/nginx/sites-enabled/wrs-agentic
 nginx -t

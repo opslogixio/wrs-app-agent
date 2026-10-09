@@ -14,10 +14,8 @@ class CustomLoginView(auth_views.LoginView):
     template_name = 'auth/login.html'
 
     def get_success_url(self):
-        pass
         #redirect_url = CustomBackend().get_redirect_url(self.request)
         redirect_url = CustomBackend().get_redirect_url(self.request.user)
-        pass
         if redirect_url:
             return redirect_url
         return super().get_success_url()

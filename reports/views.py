@@ -556,7 +556,7 @@ class Reports(DealershipAccessMixin, TemplateView):
   
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        dealership_id = self.kwargs['dealership_id']
+        dealership_id = self.kwargs.get('dealership_id') or self.request.GET.get('dealership_id')
         dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
         context['dealership'] = dealership.name
         context['dealerships'] = accessible_dealerships(self.request.user)
@@ -678,7 +678,7 @@ class OpenClaimsReportView(DealershipAccessMixin, View):
         # Context setup
         context = {}
         
-        dealership_id = self.kwargs['dealership_id']
+        dealership_id = self.kwargs.get('dealership_id') or self.request.GET.get('dealership_id')
         dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
 
         # Get the 'Open' ro_status instance
@@ -721,7 +721,7 @@ class DiscrepancyReportView(View):
     def get_context_data(self, **kwargs):
         # Context setup
         context = {}
-        dealership_id = self.kwargs['dealership_id']
+        dealership_id = self.kwargs.get('dealership_id') or self.request.GET.get('dealership_id')
         dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
 
         context['report_type'] = "Discrepancy Report"

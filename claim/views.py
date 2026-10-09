@@ -1116,6 +1116,15 @@ class DiscrepancyCreate(CreateView):
 @method_decorator(in_group_required('dealer-admin', 'wrs-admin'), name='dispatch')
 class DealerClaimLineUpdateView(DealershipAccessMixin, UpdateView):
     http_method_names = ['get', 'head', 'options']
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        users = CustomUser.objects.filter(dealership=self.authorized_dealership).distinct()
+        for field in ('service_writer', 'technician'):
+            if field in form.fields:
+                form.fields[field].queryset = users
+        return form
+
     model = Claim
     form_class = ClaimLineUpdateForm
     template_name = 'claim/dealer_claim_update_view.html'

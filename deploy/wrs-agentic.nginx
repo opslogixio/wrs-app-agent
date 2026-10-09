@@ -4,6 +4,24 @@ server {
     listen 80;
     listen [::]:80;
     server_name wrs.opslogix.io wrs-agentic 54.166.216.124;
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+    location / {
+        return 301 https://wrs.opslogix.io$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name wrs.opslogix.io;
+    ssl_certificate /etc/letsencrypt/live/wrs.opslogix.io/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/wrs.opslogix.io/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    proxy_hide_header Strict-Transport-Security;
     client_max_body_size 20M;
 
     # Never serve uploaded claims or reports as public static assets.

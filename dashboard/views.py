@@ -104,7 +104,6 @@ def build_dealer_dashboard(request, dealership_id):
         )
 
         open_ro_count = open_ro_count_info['open_ro_count']
-        pass
 
         # Filter the LineTable to get the count of 'Paid' claims that are 90 days or more old
         requires_attention_expire_info = LineTable.objects.filter(claim_status__name='Requires Attention', dealership_id=dealership_obj.pk, start_date__lte=ninety_days_ago).aggregate(
@@ -240,7 +239,6 @@ def build_dashboard(dealerships):
     for dealership in dealerships:
         try:
             dealership_obj = dealership
-            pass
             ## claim counts and totals
             new_claims_count = LineTable.objects.filter(claim_status__name='New', dealership_id=dealership_obj.pk).count()
 
@@ -305,9 +303,6 @@ def build_dashboard(dealerships):
             claim__dealership=dealership
             ).aggregate(total_amount=Sum('claim_total'))['total_amount'] or 0
             
-            pass
-            pass
-            pass
 
             paid_claims_yearly_total = LineTable.objects.filter(
                 claim_status__name='Paid',

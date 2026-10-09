@@ -1,7 +1,7 @@
 /* Validate each claim line without submitting or clearing entered values. */
 document.addEventListener('DOMContentLoaded', function () {
     const completionStatuses = ['pending', 'requires attention'];
-    const commentStatuses = ['requires attention', 'not submitted', 'no warranty', 'rejected'];
+    const commentStatuses = ['requires attention', 'not submitted', 'rejected'];
     document.querySelectorAll('.line-update-form, .claim-line-form').forEach(function (form) {
         const status = form.elements.namedItem('claim_status');
         const completion = form.elements.namedItem('start_date');

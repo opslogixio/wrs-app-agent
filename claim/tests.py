@@ -531,7 +531,7 @@ class CompletionDateRequirementTests(TestCase):
     def setUpTestData(cls):
         cls.dealer = Dealership.objects.create(name='Completion Dates')
         cls.admin = get_user_model().objects.create_superuser(email='completion@example.invalid')
-        cls.statuses = {name: Status.objects.create(name=name) for name in ('New', 'Pending', 'Requires Attention', 'Rework')}
+        cls.statuses = {name: Status.objects.create(name=name) for name in ('New', 'Pending', 'Requires Attention', 'Rework', 'No Warranty', 'Not Submitted', 'Rejected')}
         cls.type = ClaimType.objects.create(name='Warranty')
         cls.other_type = ClaimType.objects.create(name='Repair')
         cls.claim = Claim.objects.create(dealership=cls.dealer, repair_order=9001,
@@ -648,3 +648,29 @@ class CompletionDateRequirementTests(TestCase):
         self.client.force_login(dealer)
         response = self.client.post(self.url, {'line_id': self.line.pk, 'start_date': 'October 08, 2026'})
         self.assertEqual(response.status_code, 403)
+
+    def test_no_warranty_accepts_empty_comments_for_admin_and_dealer(self):
+        dealer = get_user_model().objects.create_user(email='no-warranty@example.invalid')
+        dealer.groups.add(Group.objects.create(name='dealer-admin'))
+        dealer.dealership.add(self.dealer)
+        for user in (self.admin, dealer):
+            with self.subTest(user=user.email):
+                LineTable.objects.filter(pk=self.line.pk).update(claim_status=self.statuses['Rework'])
+                self.client.force_login(user)
+                response = self.client.post(self.url, {'line_id': self.line.pk,
+                    'claim_status': self.statuses['No Warranty'].pk, 'comment': ''})
+                self.assertEqual(response.status_code, 302)
+                self.line.refresh_from_db()
+                self.assertEqual(self.line.claim_status, self.statuses['No Warranty'])
+                self.assertFalse(Journal.objects.exists())
+
+    def test_other_restricted_statuses_still_require_comments(self):
+        for status in ('Not Submitted', 'Rejected', 'Requires Attention'):
+            with self.subTest(status=status):
+                payload = self.payload(status)
+                payload.update(comment='', start_date='October 08, 2026')
+                response = self.client.post(self.url, payload)
+                self.assertContains(self.client.get(response.url), 'A comment is required')
+                self.line.refresh_from_db()
+                self.assertEqual(self.line.claim_status, self.statuses['New'])
+        self.assertFalse(Journal.objects.exists())

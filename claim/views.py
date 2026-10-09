@@ -960,13 +960,6 @@ COMMENT_REQUIRED_STATUSES = {
 def line_update(request):
     forwarding_url = safe_return_url(request)
 
-    COMMENT_REQUIRED_STATUSES = {
-        'requires attention',
-        'not submitted',
-        'no warranty',
-        'rejected',
-    }
-
     line_id = positive_id(request.POST.get('line_id'))
     line = get_object_or_404(lines_for_user(request.user).select_for_update().select_related('claim', 'claim_status', 'claim_type'), id=line_id)
 

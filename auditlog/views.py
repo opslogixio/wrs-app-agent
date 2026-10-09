@@ -1,3 +1,4 @@
+from decorators.access import in_group_required
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
@@ -39,7 +40,7 @@ def _format_changes_for_display(changes):
 
     return rows
 
-@login_required
+@in_group_required('wrs-admin')
 def audit_event_list(request):
     tz = timezone.get_current_timezone()
     

@@ -1,3 +1,5 @@
+from core.dates import as_date, clean_datetime, datetime_input
+from django.utils import timezone
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import FileResponse, Http404
 from django.conf import settings
@@ -211,7 +213,7 @@ class PaginatedClaimQueue(DealershipAccessMixin, ListView):
         if status == 'Aging':
             filters = {
                 'linetable__claim_status__name': 'Requires Attention',
-                'linetable__start_date__lte': date.today() - timedelta(days=90),
+                'linetable__start_date__date__lte': timezone.localdate() - timedelta(days=90),
             }
         lines = LineTable.objects.filter(
             dealership=self.authorized_dealership,
@@ -232,14 +234,14 @@ class PaginatedClaimQueue(DealershipAccessMixin, ListView):
         context = super().get_context_data(**kwargs)
         bodyshop, other = [], []
         tags = {}
-        today = date.today()
+        today = timezone.localdate()
         for claim in context['object_list']:
             claim_tags = list(claim.claim_tag.all())
             tags.update({tag.pk: tag for tag in claim_tags})
             item = claim
             if self.include_line_ages:
                 item = {'claim': claim, 'lines': [
-                    {'line': line, 'claim_age': (today - line.start_date).days + 1 if line.start_date else None}
+                    {'line': line, 'claim_age': (today - as_date(line.start_date)).days + 1 if line.start_date else None}
                     for line in claim.linetable_set.all()
                 ]}
             target = bodyshop if any(tag.name == 'Bodyshop' for tag in claim_tags) else other
@@ -308,7 +310,7 @@ class OpenRoQueueListView(ListView):
         if not dealership_id:
             return Claim.objects.none()
 
-        today = date.today()
+        today = timezone.localdate()
         open_status = get_object_or_404(RoStatus, name='Open')
 
         dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
@@ -376,7 +378,7 @@ def line_edit_values(request, claim, queryset):
             'line_num': str(line.line_num or ''), 'claim_type': str(line.claim_type_id or ''),
             'claim_status': str(line.claim_status_id or ''),
             'claim_total': str(line.claim_total) if line.claim_total is not None else '',
-            'start_date': line.start_date.strftime('%B %d, %Y') if line.start_date else '',
+            'start_date': datetime_input(line.start_date),
             'comment': '', 'compliant': bool(line.compliant),
         }
         if draft.get('line_id') == line.pk:
@@ -485,7 +487,7 @@ class ClaimLineUpdateView(DealershipAccessMixin, UpdateView):
             'claim': claim,
             'discrepancy': reconciliation,
             'tags': tags,
-            'start': date.today().strftime('%B %d, %Y'),
+            'start': timezone.localdate().strftime('%B %d, %Y'),
             'start_date': DateFormat(line_table[0].start_date).format('F d, Y') if line_table and line_table[0].start_date else None,
         })
         return context
@@ -797,7 +799,7 @@ class DealerClaimLineUpdateView(DealershipAccessMixin, UpdateView):
         context['claim'] = claim
         context['discrepancy'] = reconciliation
         context['tags'] = tags
-        current_date = date.today()
+        current_date = timezone.localdate()
         context['start'] = current_date.strftime('%B %d, %Y')
 
         if line_table and line_table[0].start_date:
@@ -970,7 +972,7 @@ def line_update(request):
         immutable = {
             'line_num': str(line.line_num or ''),
             'claim_type': str(line.claim_type_id or ''),
-            'start_date': line.start_date.strftime('%B %d, %Y') if line.start_date else '',
+            'start_date': datetime_input(line.start_date),
         }
         if any(request.POST.get(key, value) != value for key, value in immutable.items()):
             raise PermissionDenied
@@ -1055,17 +1057,14 @@ def line_update(request):
     # ---------------------------------------------------------
 
     new_start_date = request.POST.get('start_date',
-        line.start_date.strftime('%B %d, %Y') if line.start_date else '').strip()
+        datetime_input(line.start_date)).strip()
 
     if new_start_date:
         try:
-            formatted_start_date = datetime.strptime(
-                new_start_date,
-                '%B %d, %Y'
-            ).date()
+            formatted_start_date = clean_datetime(new_start_date)
 
-        except ValueError:
-            return line_update_error(request, line, 'Completion Date must use the expected date format.')
+        except ValidationError:
+            return line_update_error(request, line, 'Enter a valid completion date and time.')
 
         if formatted_start_date != line.start_date:
             line.start_date = formatted_start_date
@@ -1130,7 +1129,7 @@ def line_update(request):
 
         # Set paid_date when moving TO Paid.
         if new_claim_status.name.strip().lower() == 'paid':
-            line.paid_date = date.today()
+            line.paid_date = timezone.now()
 
         # Clear paid_date when moving AWAY from Paid.
         else:
@@ -1243,7 +1242,7 @@ def add_start_date(request, line_id):
     line = get_object_or_404(lines_for_user(request.user).select_for_update(), id=line_id)
     from django import forms
     try:
-        line.start_date = forms.DateField(required=False).clean(start_date)
+        line.start_date = clean_datetime(start_date)
     except ValidationError:
         return HttpResponseBadRequest('Invalid completion date.')
     if line.claim_status and line.claim_status.name.strip().lower() in COMPLETION_DATE_REQUIRED_STATUSES and line.start_date is None:
@@ -1281,7 +1280,7 @@ def update_ro_status(request):
     return HttpResponseBadRequest('Invalid request or missing data')
 
 def get_claim_status_totals(dealership_id, start_date, end_date):
-    line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date__range=(start_date, end_date))
+    line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date__date__range=(start_date, end_date))
 
     claim_status_totals = {
         'Paid': 0,
@@ -1485,7 +1484,7 @@ def export_to_pdf(request):
     report = view.generate_report(dealership_obj.id, report_type, start_date, end_date)
     claim_status_totals = get_claim_status_totals(dealership_obj.id, start_date, end_date)
 
-    current_date = date.today()
+    current_date = timezone.localdate()
 
     context = {
         'report': report,
@@ -1532,7 +1531,7 @@ class ReportsView(TemplateView):
         #context['reports'] = ['Daily Report', 'Discrepancy', 'Open RO Report']
         context['reports'] = ['Daily Report']
         context['report_type'] = 'Daily Report'
-        current_date = date.today()
+        current_date = timezone.localdate()
         context['start'] = current_date.strftime('%d %b, %Y')
         context['end'] = current_date.strftime('%d %b, %Y')
         #context['start'] = '01 Jan, 2023'
@@ -1593,7 +1592,7 @@ class ReportsViewForm(View):
 
         if report_type == "Daily Report":
             # WE NEED TO ADD FILTER TO INCLUDE ONLY WRS ADMIN COMMENTS
-            line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date__range=(start, end)).order_by('claim__repair_order')
+            line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date__date__range=(start, end)).order_by('claim__repair_order')
 
 
             report = []
@@ -1652,7 +1651,7 @@ class ReportsViewForm(View):
                     elif claim_status_name == 'Not Submitted':
                         report_item['not_submitted_claim_total'] += line.claim_total
                     # Fetch line data and comments here
-                    lines = LineTable.objects.filter(claim__repair_order=repair_order, modified_date__range=(start, end)).distinct()
+                    lines = LineTable.objects.filter(claim__repair_order=repair_order, modified_date__date__range=(start, end)).distinct()
                     line_ids = lines.values_list('id', flat=True)
 
 
@@ -1678,7 +1677,7 @@ class ReportsViewForm(View):
 
 
         if report_type == "Open RO Report":
-            line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date__range=(start, end), claim__ro_status__name='Open', claim_status__name='Paid').exclude(claim_status__name='New')
+            line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date__date__range=(start, end), claim__ro_status__name='Open', claim_status__name='Paid').exclude(claim_status__name='New')
 
             report = {}
             for line in line_tables:

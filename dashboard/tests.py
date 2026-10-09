@@ -1,3 +1,4 @@
+from core.dates import as_datetime
 from datetime import date
 from decimal import Decimal
 import json
@@ -31,7 +32,7 @@ class ChartPerformanceTests(TestCase):
             ('88.00', date(cls.year, 1, 1), cls.pending, cls.dealer),
             ('77.00', date(cls.year, 1, 1), cls.paid, cls.foreign),
         ):
-            LineTable.objects.create(claim=cls.claim, dealership=dealer, claim_type=cls.type, claim_status=status, paid_date=when, claim_total=Decimal(amount))
+            LineTable.objects.create(claim=cls.claim, dealership=dealer, claim_type=cls.type, claim_status=status, paid_date=as_datetime(when), claim_total=Decimal(amount))
 
     def test_chart_totals_and_constant_query_budget(self):
         request = RequestFactory().get('/')
@@ -79,8 +80,8 @@ class DashboardAggregationTests(TestCase):
             ('Paid', '50', date(2025, 12, 5), False, completed),
         ):
             line = LineTable.objects.create(claim=claim, dealership=cls.dealer, claim_status=cls.statuses[status],
-                claim_total=amount, start_date=date(2025, 1, 1), paid_date=when, compliant=compliant)
-            LineTable.objects.filter(pk=line.pk).update(created_date=date(2026, 1, 1))
+                claim_total=amount, start_date=as_datetime(date(2025, 1, 1)), paid_date=as_datetime(when), compliant=compliant)
+            LineTable.objects.filter(pk=line.pk).update(created_date=as_datetime(date(2026, 1, 1)))
         LineTable.objects.create(claim=cls.claim, dealership=cls.other, claim_status=cls.statuses['Paid'], claim_total='999')
 
     def test_grouped_dashboard_totals_and_january_previous_year(self):

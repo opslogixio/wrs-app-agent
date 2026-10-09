@@ -58,8 +58,8 @@ class Claim(models.Model):
     dealership = models.ForeignKey(Dealership, on_delete=models.CASCADE, verbose_name='dealership name', null=True, blank=True) 
     ro_status = models.ForeignKey(RoStatus, on_delete=models.CASCADE, verbose_name='ro status name', null=True, blank=True)
     claim_tag = models.ManyToManyField(Tag)
-    created_date = models.DateField(auto_now_add=True, null=True, blank=True)
-    modified_date = models.DateField(auto_now=True, null=True, blank=True)
+    created_date = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    modified_date = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     # Metadata
     def __int__(self):
@@ -93,8 +93,8 @@ class PdfFile(models.Model):
     pdf_name = models.CharField(max_length=100, verbose_name='pdf name', null=True, blank=True)
     pdf_file = models.FileField(upload_to=user_directory_path)
     claim = models.ForeignKey(Claim, on_delete=models.CASCADE, verbose_name='claim id', null=True, blank=True)
-    created_date = models.DateField(auto_now_add=True, null=True, blank=True)
-    modified_date = models.DateField(auto_now=True, null=True, blank=True)
+    created_date = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    modified_date = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     # Metadata
     class Meta:
@@ -147,10 +147,10 @@ class LineTable(models.Model):
     )
     claim_status = models.ForeignKey(Status, on_delete=models.CASCADE, verbose_name='claim status name', null=True, blank=True, default=1)
     dealership = models.ForeignKey(Dealership, on_delete=models.CASCADE, verbose_name='dealership name', null=True, blank=True)
-    created_date = models.DateField(auto_now_add=True, null=True, blank=True)
-    modified_date = models.DateField(auto_now=True, null=True, blank=True)
-    start_date = models.DateField(null=True, blank=True)
-    paid_date = models.DateField(null=True, blank=True)
+    created_date = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    modified_date = models.DateTimeField(auto_now=True, null=True, blank=True)
+    start_date = models.DateTimeField(null=True, blank=True)
+    paid_date = models.DateTimeField(null=True, blank=True)
     compliant = models.BooleanField(null=True, blank=True)
     discrepancy = models.ForeignKey(Discrepancy, on_delete=models.SET_NULL, null=True, blank=True)
 
@@ -184,8 +184,8 @@ class Journal(models.Model):
     line = models.ForeignKey(LineTable, on_delete=models.CASCADE, verbose_name='line id', null=True, blank=True)
     claim = models.ForeignKey(Claim, on_delete=models.CASCADE, verbose_name='claim id', null=True, blank=True)
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True)
-    created_date = models.DateField(auto_now_add=True, null=True, blank=True)
-    modified_date = models.DateField(auto_now=True, null=True, blank=True)
+    created_date = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    modified_date = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     # Metadata
     class Meta:
@@ -200,8 +200,8 @@ class Event(models.Model):
     line = models.ForeignKey(LineTable, on_delete=models.CASCADE, verbose_name='line id', null=True, blank=True)
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True)
     comment = models.TextField(verbose_name='comment', null=True, blank=True)
-    created_date = models.DateField(auto_now_add=True, null=True, blank=True)
-    modified_date = models.DateField(auto_now=True, null=True, blank=True)
+    created_date = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    modified_date = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     # Metadata
     class Meta:

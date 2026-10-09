@@ -29,7 +29,7 @@
           <td>{{ form.repair_order }}</td>
           <td>{{ form.dealership }}</td>
           <td>{{ form.ro_status }}</td>
-          <td>{{ form.created_date }}</td>
+          <td>{{ form.created_date|date:'Y-m-d H:i:s T' }}</td>
           <td><input type="checkbox" name="{{ form.DELETE.name }}" id="{{ form.DELETE.id_for_label }}"> Delete</td>
         </tr>
       {% endfor %}

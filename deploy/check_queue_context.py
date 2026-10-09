@@ -17,6 +17,7 @@ from django.test.utils import setup_test_environment, teardown_test_environment
 from django.urls import reverse
 from accounts.models import Dealership
 from claim.test_helpers import QueueTableParser
+from core.dates import as_date
 
 queues = (
     ('claim-queue', 'Rework', 'other_claims', False),
@@ -60,7 +61,7 @@ try:
                                 assert line.dealership_id == dealer.pk
                                 assert line.claim_status.name == ('Requires Attention' if status == 'Aging' else status)
                                 if status == 'Aging':
-                                    assert line.start_date and line.start_date <= date.today() - timedelta(days=90)
+                                    assert line.start_date and as_date(line.start_date) <= date.today() - timedelta(days=90)
                                 expected.append((str(claim.repair_order), str(line.line_num), link))
                         else:
                             expected.append((str(claim.repair_order), None, link))

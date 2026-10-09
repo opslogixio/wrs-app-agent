@@ -1,3 +1,4 @@
+from core.dates import as_date, as_datetime
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -246,7 +247,7 @@ class QueuePaginationTests(TestCase):
             for status in cls.statuses.values():
                 for line_num in ('1', '2'):
                     LineTable.objects.create(claim=claim, dealership=cls.dealer, claim_status=status,
-                        start_date=date(2020, 1, 1), line_num=line_num, claim_total='12.50')
+                        start_date=as_datetime(date(2020, 1, 1)), line_num=line_num, claim_total='12.50')
         unrelated = Claim.objects.create(dealership=cls.foreign, repair_order=9999)
         LineTable.objects.create(claim=unrelated, dealership=cls.foreign, claim_status=cls.statuses['Pending'])
 
@@ -594,21 +595,21 @@ class CompletionDateRequirementTests(TestCase):
                 response = self.client.post(self.url, payload)
                 self.assertEqual(response.status_code, 302)
                 self.line.refresh_from_db()
-                self.assertEqual(self.line.start_date, date(2026, 10, 8))
+                self.assertEqual(as_date(self.line.start_date), date(2026, 10, 8))
                 self.assertEqual(self.line.claim_status.name, status)
                 self.assertEqual(self.line.claim_total, Decimal('123.45'))
                 self.assertTrue(self.line.compliant)
                 self.assertEqual(Journal.objects.filter(line=self.line).count(), 1 if status == 'Pending' else 2)
 
     def test_explicit_date_clear_is_rejected_but_omitted_date_is_retained(self):
-        LineTable.objects.filter(pk=self.line.pk).update(claim_status=self.statuses['Pending'], start_date=date(2026, 10, 8))
+        LineTable.objects.filter(pk=self.line.pk).update(claim_status=self.statuses['Pending'], start_date=as_datetime(date(2026, 10, 8)))
         response = self.client.post(self.url, {'line_id': self.line.pk, 'claim_status': self.statuses['Pending'].pk, 'start_date': ''})
         self.assertEqual(response.url, self.edit_url + f'#line_form_{self.line.pk}')
         self.line.refresh_from_db()
-        self.assertEqual(self.line.start_date, date(2026, 10, 8))
+        self.assertEqual(as_date(self.line.start_date), date(2026, 10, 8))
         response = self.client.post(self.url, {'line_id': self.line.pk, 'claim_status': self.statuses['Pending'].pk, 'comment': 'Keep existing date'})
         self.line.refresh_from_db()
-        self.assertEqual(self.line.start_date, date(2026, 10, 8))
+        self.assertEqual(as_date(self.line.start_date), date(2026, 10, 8))
         self.assertEqual(Journal.objects.filter(line=self.line).count(), 1)
 
     def test_optional_status_can_save_without_date(self):
@@ -635,11 +636,11 @@ class CompletionDateRequirementTests(TestCase):
         self.assertFalse(Journal.objects.exists())
 
     def test_completion_date_endpoint_cannot_clear_required_dates(self):
-        LineTable.objects.filter(pk=self.line.pk).update(claim_status=self.statuses['Requires Attention'], start_date=date(2026, 10, 8))
+        LineTable.objects.filter(pk=self.line.pk).update(claim_status=self.statuses['Requires Attention'], start_date=as_datetime(date(2026, 10, 8)))
         response = self.client.post(reverse('claim:start-date', args=[self.line.pk]), {'start_date': ''})
         self.assertEqual(response.status_code, 400)
         self.line.refresh_from_db()
-        self.assertEqual(self.line.start_date, date(2026, 10, 8))
+        self.assertEqual(as_date(self.line.start_date), date(2026, 10, 8))
 
     def test_dealer_cannot_gain_permission_to_edit_completion_date(self):
         dealer = get_user_model().objects.create_user(email='completion-dealer@example.invalid')

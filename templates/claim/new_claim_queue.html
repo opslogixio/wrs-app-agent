@@ -76,7 +76,7 @@
                         {% endfor %}
                         </td>
                       
-                        <td data-sort="{{ claim.created_date|date:'Ymd' }}">{{ claim.created_date }}</td>
+                        <td data-sort="{{ claim.created_date|date:'YmdHis' }}">{{ claim.created_date|date:'Y-m-d H:i:s T' }}</td>
                         <td>{{ claim.new_comment|default:"No comment" }}</td>
                       </tr>
                     {% endfor %}  
@@ -116,7 +116,7 @@
                         {% endfor %}
                         </td>
                       
-                        <td data-sort="{{ claim.created_date|date:'Ymd' }}">{{ claim.created_date }}</td>
+                        <td data-sort="{{ claim.created_date|date:'YmdHis' }}">{{ claim.created_date|date:'Y-m-d H:i:s T' }}</td>
                         <td>{{ claim.new_comment|default:"" }}</td>
                       </tr>
                     {% endfor %}  

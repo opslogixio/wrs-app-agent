@@ -1,3 +1,4 @@
+from core.dates import as_datetime
 from pathlib import Path
 import tempfile
 
@@ -318,10 +319,10 @@ class ReportTaskTests(TestCase):
         from .views import ReportService
         today = timezone.localdate()
         old = Journal.objects.create(claim=self.claim, line=self.line, user=self.admin, comment='Old admin comment')
-        Journal.objects.filter(pk=old.pk).update(created_date=today - timedelta(days=2))
+        Journal.objects.filter(pk=old.pk).update(created_date=as_datetime(today - timedelta(days=2)))
         first = Journal.objects.create(claim=self.claim, line=self.line, user=self.admin, comment='Latest first')
         second = Journal.objects.create(claim=self.claim, line=self.line, user=self.admin, comment='Latest second <unsafe>')
-        Journal.objects.filter(pk__in=[first.pk, second.pk]).update(created_date=today - timedelta(days=1))
+        Journal.objects.filter(pk__in=[first.pk, second.pk]).update(created_date=as_datetime(today - timedelta(days=1)))
         Journal.objects.create(claim=self.claim, line=self.line, user=self.user, comment='Exclude dealer comment today')
         report = ReportService.generate_ra_report(self.dealer.pk, 'Requires Attention')
         text = report['ra_claims'][0]['lines'][0]['comments']

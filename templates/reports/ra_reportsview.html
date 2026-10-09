@@ -60,7 +60,7 @@
                           <td></td> <!-- Empty cell to keep structure aligned -->
                           <td>{{ line_info.line.line_num }}</td>
                           <td>{{ claim_data.claim.ro_status }}</td>
-                          <td>{{ line_info.line.start_date }}</td>
+                          <td>{{ line_info.line.start_date|date:'Y-m-d H:i:s T' }}</td>
                           <td>{{ line_info.claim_age }}</td>  <!-- This will display the claim age -->
                           <td>{{ line_info.line.claim_total }}</td>
                 

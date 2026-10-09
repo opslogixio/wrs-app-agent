@@ -40,6 +40,10 @@ else:
     p.write_text(text)
 PY
 systemctl enable --now mariadb
+# Django calendar-day lookups on timestamps require named database time zones.
+if ! mariadb -N -e "SELECT CONVERT_TZ('2026-01-01 00:00:00', 'UTC', 'America/New_York')" | grep -qv NULL; then
+    mariadb-tzinfo-to-sql /usr/share/zoneinfo | mariadb mysql
+fi
 python3 - <<'PY'
 from pathlib import Path
 import subprocess

@@ -32,8 +32,8 @@ class Dealership(models.Model):
     md_restriction = models.CharField(help_text='Enter md restriction of the dealership', max_length=30, verbose_name='dealership md restriction')
     wrs_billing_rate = models.CharField(help_text='Enter wrs billing rate of the dealership', max_length=30, verbose_name='dealership wrs billing rate')
     wrs_service_plan = models.CharField(help_text='Enter wrs service plan of the dealership', max_length=100, verbose_name='dealership wrs service plan')
-    agreement_date = models.DateField(null=True)
-    created_date = models.DateField(auto_now_add=True, null=True)
+    agreement_date = models.DateTimeField(null=True)
+    created_date = models.DateTimeField(auto_now_add=True, null=True)
     compliance_enable = models.BooleanField(help_text="Compliance enable filed", default=True)
 
     # Metadata

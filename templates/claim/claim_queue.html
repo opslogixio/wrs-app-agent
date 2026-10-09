@@ -76,7 +76,7 @@
                         {% endfor %}
                         </td>
                       
-                        <td data-sort="{{ claim.created_date|date:'Ymd' }}">{{ claim.created_date }}</td>
+                        <td data-sort="{{ claim.created_date|date:'YmdHis' }}">{{ claim.created_date|date:'Y-m-d H:i:s T' }}</td>
                         <td>Action to go here</td>
                       </tr>
                     {% endfor %}  
@@ -116,7 +116,7 @@
                         {% endfor %}
                         </td>
                       
-                        <td data-sort="{{ claim.created_date|date:'Ymd' }}">{{ claim.created_date }}</td>
+                        <td data-sort="{{ claim.created_date|date:'YmdHis' }}">{{ claim.created_date|date:'Y-m-d H:i:s T' }}</td>
                         <td>Action to go here</td>
                       </tr>
                     {% endfor %}  

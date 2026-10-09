@@ -1,3 +1,4 @@
+from core.dates import as_datetime
 """Dashboard totals in three queries, independent of dealership count."""
 from datetime import date, timedelta
 from decimal import Decimal
@@ -46,7 +47,7 @@ def build_dashboard(dealerships):
         'rework_claims': Q(claim_status__name='Rework'),
         # Retain the existing dashboard's compliant=True financial metric.
         'paid_claims_nc': paid & Q(compliant=True),
-        'requires_attention_expire': attention & Q(start_date__lte=today - timedelta(days=90)),
+        'requires_attention_expire': attention & Q(start_date__date__lte=today - timedelta(days=90)),
     }
     annotations = {}
     for name, condition in filters.items():
@@ -55,11 +56,11 @@ def build_dashboard(dealerships):
             annotations[name + '_total'] = Sum('claim_total', filter=condition)
     annotations.update({
         'in_queue_total': Sum('claim_total', filter=Q(claim_status__name__in=['Pending', 'Rework', 'Requires Attention'])),
-        'paid_claims_monthly_total': Sum('claim_total', filter=paid & Q(paid_date__gte=month_start, paid_date__lt=next_month)),
-        'paid_claims_previous_total': Sum('claim_total', filter=paid & Q(paid_date__gte=previous_start, paid_date__lt=month_start)),
-        'paid_claims_yearly_total': Sum('claim_total', filter=paid & Q(paid_date__gte=year_start, paid_date__lt=year_end)),
-        'compliance_count': Count('pk', filter=paid & Q(created_date__gte=year_start, created_date__lt=year_end)),
-        'noncompliance_count': Count('pk', filter=paid & Q(compliant=False, created_date__gte=year_start, created_date__lt=year_end)),
+        'paid_claims_monthly_total': Sum('claim_total', filter=paid & Q(paid_date__gte=as_datetime(month_start), paid_date__lt=as_datetime(next_month))),
+        'paid_claims_previous_total': Sum('claim_total', filter=paid & Q(paid_date__gte=as_datetime(previous_start), paid_date__lt=as_datetime(month_start))),
+        'paid_claims_yearly_total': Sum('claim_total', filter=paid & Q(paid_date__gte=as_datetime(year_start), paid_date__lt=as_datetime(year_end))),
+        'compliance_count': Count('pk', filter=paid & Q(created_date__gte=as_datetime(year_start), created_date__lt=as_datetime(year_end))),
+        'noncompliance_count': Count('pk', filter=paid & Q(compliant=False, created_date__gte=as_datetime(year_start), created_date__lt=as_datetime(year_end))),
     })
     grouped = {row['dealership_id']: row for row in (
         LineTable.objects.filter(dealership_id__in=ids, dealership_id=F('claim__dealership_id'))

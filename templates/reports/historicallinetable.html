@@ -36,8 +36,8 @@
           <td>{{ form.claim_type }}</td>
           <td>{{ form.claim_total }}</td>
           <td>{{ form.claim_status }}</td>
-          <td>{{ form.start_date }}</td>
-          <td>{{ form.paid_date }}</td>
+          <td>{{ form.start_date|date:'Y-m-d H:i:s T' }}</td>
+          <td>{{ form.paid_date|date:'Y-m-d H:i:s T' }}</td>
           <td>{{ form.compliant }}</td>
           <td>{{ form.discrepancy }}</td>
           <td><input type="checkbox" name="{{ form.DELETE.name }}" id="{{ form.DELETE.id_for_label }}"> Delete</td>

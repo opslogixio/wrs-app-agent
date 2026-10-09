@@ -37,8 +37,8 @@
                                 </td>
                                 <td>{{ claim.dealership }}</td>
                                 <td>{{ claim.ro_status }}</td>
-                                <td>{{ claim.created_date }}</td>
-                                <td>{{ claim.modified_date }}</td>
+                                <td>{{ claim.created_date|date:'Y-m-d H:i:s T' }}</td>
+                                <td>{{ claim.modified_date|date:'Y-m-d H:i:s T' }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>

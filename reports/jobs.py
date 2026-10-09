@@ -1,3 +1,4 @@
+from core.dates import as_date, as_datetime
 """Database-backed export queue. The worker renders PDFs outside HTTP requests."""
 import logging
 from datetime import timedelta
@@ -24,6 +25,7 @@ LEASE = timedelta(minutes=30)
 
 
 def enqueue_report(user, dealership, report_type, start_date=None, end_date=None):
+    start_date, end_date = as_datetime(start_date), as_datetime(end_date)
     # Serialize submissions per user so simultaneous clicks cannot bypass the limit.
     with transaction.atomic():
         get_user_model().objects.select_for_update().get(pk=user.pk)
@@ -65,7 +67,7 @@ def report_path(job):
 
 def report_filename(job):
     from django.utils.text import slugify
-    day = job.start_date or timezone.localdate(job.created_at)
+    day = as_date(job.start_date) or timezone.localdate(job.created_at)
     return f"{slugify(job.dealership.name)}-{slugify(job.report_type)}-{day.isoformat()}.pdf"
 
 
@@ -92,8 +94,8 @@ def local_asset(uri, relative_uri):
 def render_report(job, destination):
     from .views import ReportService, get_claim_status_totals
     context = {'dealership': job.dealership.name, 'report_type': job.report_type,
-        'start_date': job.start_date.isoformat() if job.start_date else '',
-        'end_date': job.end_date.isoformat() if job.end_date else ''}
+        'start_date': as_date(job.start_date).isoformat() if job.start_date else '',
+        'end_date': as_date(job.end_date).isoformat() if job.end_date else ''}
     if job.report_type == 'Daily Report':
         report = ReportService.generate_daily_report(job.dealership_id, job.start_date)
         context['claim_status_totals'] = get_claim_status_totals(job.dealership_id, job.start_date)

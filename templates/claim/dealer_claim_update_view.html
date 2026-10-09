@@ -273,8 +273,8 @@
                     <input type="hidden" name="claim_total" value="{{ line.claim_total }}"> 
                   </td>
                   <td class="col-lg-2"> 
-                    <p>{{ line.start_date|date:'F d, Y' }}</p>
-                    <input type="hidden" name="start_date" value="{{ line.start_date|date:'F d, Y' }}"> 
+                    <p>{{ line.start_date|date:'Y-m-d H:i:s T' }}</p>
+                    <input type="hidden" name="start_date" value="{{ line.start_date|date:'Y-m-d\TH:i:s' }}">
                   </td>
                   <td class="col-lg-1">
                     <p>{% if line.discrepancy.id %} X {% endif %}</p>
@@ -374,7 +374,7 @@
                       {{ entry.line.line_num }}
                     </td>
                     <td class="col-lg-2">    
-                      {{ entry.created_date }}
+                      {{ entry.created_date|date:'Y-m-d H:i:s T' }}
                     </td>
                     <td class="col-lg-2">
                       {{ entry.user.email }}

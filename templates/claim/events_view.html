@@ -36,8 +36,8 @@
                             <td>{{ event.line }}</td>
                             <td>{{ event.user }}</td>
                             <td>{{ event.comment }}</td>
-                            <td>{{ event.created_date }}</td>
-                            <td>{{ event.modified_date }}</td>
+                            <td>{{ event.created_date|date:'Y-m-d H:i:s T' }}</td>
+                            <td>{{ event.modified_date|date:'Y-m-d H:i:s T' }}</td>
                             </tr>
                         {% endfor %}
                         </tbody>

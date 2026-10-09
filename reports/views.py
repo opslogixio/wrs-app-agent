@@ -1,3 +1,5 @@
+from core.dates import as_date, as_datetime
+from django.db.models.functions import TruncDate
 from pathlib import Path
 from django.db import transaction
 from django.http import FileResponse, Http404
@@ -36,7 +38,7 @@ def update_daily_report_database(dealership_id, start):
 
 
     # Fetch LineTable records
-    line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date=start).order_by('claim__repair_order')
+    line_tables = LineTable.objects.filter(dealership_id=dealership_id, modified_date__date=as_date(start)).order_by('claim__repair_order')
 
     # Extract relevant ForeignKey values from line_tables
     claim_status_names = line_tables.values_list('claim_status__name', flat=True).distinct()
@@ -94,7 +96,7 @@ def update_daily_report_database(dealership_id, start):
         historical_claim, created = HistoricalClaim.objects.update_or_create(
             repair_order=repair_order,
             dealership=dealership,
-            created_date=start,
+            created_date=as_datetime(start),
             defaults={'ro_status': ro_status}
         )
 
@@ -119,7 +121,7 @@ def update_daily_report_database(dealership_id, start):
             line_journals = Journal.objects.filter(
                 line_id=line_data['line_table_id'],
                 user_id__in=[2, 14],
-                created_date=start
+                created_date=as_datetime(start)
             )
             #).values_list('comment', flat=True)
 
@@ -175,8 +177,8 @@ class ReportService:
 
     @staticmethod
     def daily_lines(start_date):
-        comments = Journal.objects.filter(user__groups__name='wrs-admin', created_date=start_date).order_by('created_date', 'pk')
-        return (LineTable.objects.filter(modified_date=start_date)
+        comments = Journal.objects.filter(user__groups__name='wrs-admin', created_date__date=as_date(start_date)).order_by('created_date', 'pk')
+        return (LineTable.objects.filter(modified_date__date=as_date(start_date))
             .select_related('claim', 'claim__ro_status', 'claim_status', 'claim_type', 'discrepancy')
             .prefetch_related(Prefetch('journal_set', queryset=comments, to_attr='report_comments'))
             .order_by('claim__repair_order', 'claim_id', 'id'))
@@ -193,8 +195,7 @@ class ReportService:
     
     @staticmethod
     def generate_archived_report(dealership_id, start_date):
-        if isinstance(start_date, str):
-            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        start_date = as_date(start_date)
         start = datetime.combine(start_date, datetime.min.time())
         if settings.USE_TZ:
             start = timezone.make_aware(start)
@@ -249,7 +250,7 @@ class ReportService:
         # Filter LineTable objects by 'modified_date' within the date range and related to the given dealership
         discrepancy_lines = LineTable.objects.filter(
             dealership_id=dealership_id, claim__dealership=dealership_id,  # Ensure the claim belongs to the dealership
-            modified_date__range=(start_date, end_date),  # Filter lines within the date range
+            modified_date__date__range=(as_date(start_date), as_date(end_date)),  # Filter lines within the date range
             discrepancy__isnull=False  # Ensure there is a discrepancy
         ).select_related('claim', 'claim__ro_status', 'claim_status', 'claim_type', 'discrepancy')
 
@@ -278,11 +279,11 @@ class ReportService:
         filters = {'linetable__claim_status__name': filter_request}
         if filter_request == 'Aging':
             filters.update(linetable__claim_status__name='Requires Attention',
-                linetable__start_date__lte=today - timedelta(days=90))
+                linetable__start_date__date__lte=today - timedelta(days=90))
         latest_admin_day = (Journal.objects.filter(line_id=OuterRef('line_id'), user__groups__name='wrs-admin')
-            .order_by('-created_date', '-pk').values('created_date')[:1])
+            .annotate(comment_day=TruncDate('created_date')).order_by('-created_date', '-pk').values('comment_day')[:1])
         comments = Journal.objects.filter(user__groups__name='wrs-admin',
-            created_date=Subquery(latest_admin_day)).order_by('created_date', 'pk')
+            created_date__date=Subquery(latest_admin_day)).order_by('created_date', 'pk')
         lines = (LineTable.objects.filter(dealership_id=dealership_id)
             .select_related('claim_status', 'claim_type')
             .prefetch_related(Prefetch('journal_set', queryset=comments, to_attr='admin_comments')))
@@ -293,7 +294,7 @@ class ReportService:
         result = {'bodyshop_claims': [], 'ra_claims': []}
         for claim in claims:
             item = {'claim': claim, 'lines': [
-                {'line': line, 'claim_age': (today - line.start_date).days if line.start_date else None,
+                {'line': line, 'claim_age': (today - as_date(line.start_date)).days if line.start_date else None,
                     'comments': '\n'.join(journal.comment for journal in line.admin_comments if journal.comment) or 'No Comment'}
                 for line in claim.linetable_set.all()
             ]}
@@ -307,7 +308,7 @@ def get_claim_status_totals(dealership_id, start_date):
     from django.db.models import Sum
     totals = dict.fromkeys(['Paid', 'Requires_Attention', 'Pending', 'Rejected', 'Not_Submitted'], 0)
     rows = (LineTable.objects.filter(dealership_id=dealership_id, claim__dealership_id=dealership_id,
-        modified_date=start_date).order_by().values('claim_status__name').annotate(total=Sum('claim_total')))
+        modified_date__date=as_date(start_date)).order_by().values('claim_status__name').annotate(total=Sum('claim_total')))
     for row in rows:
         key = (row['claim_status__name'] or '').replace(' ', '_')
         if key in totals:
@@ -674,7 +675,7 @@ class DiscrepancyReportView(View):
             # Filter LineTable objects by 'modified_date' within the date range and related to the given dealership
             #discrepancy_lines = LineTable.objects.filter(
             #    claim__dealership=dealership,  # Ensure the claim belongs to the dealership
-            #    modified_date__range=(start_date, end_date),  # Filter lines within the date range
+            #    modified_date__date__range=(as_date(start_date), as_date(end_date)),  # Filter lines within the date range
             #    discrepancy__isnull=False  # Ensure there is a discrepancy
             #).select_related('claim', 'discrepancy')
 

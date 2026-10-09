@@ -27,8 +27,8 @@ class HistoricalLineTable(models.Model):
     )
     claim_status = models.ForeignKey(Status, on_delete=models.CASCADE, verbose_name='claim status name', null=True, blank=True, default=1)
     dealership = models.ForeignKey(Dealership, on_delete=models.CASCADE, verbose_name='dealership name', null=True, blank=True)
-    start_date = models.DateField(null=True, blank=True)
-    paid_date = models.DateField(null=True, blank=True)
+    start_date = models.DateTimeField(null=True, blank=True)
+    paid_date = models.DateTimeField(null=True, blank=True)
     compliant = models.BooleanField(null=True, blank=True)
     discrepancy = models.ForeignKey(Discrepancy, on_delete=models.CASCADE, null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
@@ -39,7 +39,7 @@ class HistoricalJournal(models.Model):
     line = models.ForeignKey(HistoricalLineTable, on_delete=models.CASCADE, verbose_name='line id', null=True, blank=True)
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
-    comment_date = models.DateField(null=True, blank=True)
+    comment_date = models.DateTimeField(null=True, blank=True)
 
 class dummyTable(models.Model):
     id = models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)
@@ -53,8 +53,8 @@ class ReportJob(models.Model):
     report_type = models.CharField(max_length=30, choices=[
         (name, name) for name in ('Daily Report', 'Archived Report', 'Discrepancy Report', 'RA Report')
     ])
-    start_date = models.DateField(null=True, blank=True)
-    end_date = models.DateField(null=True, blank=True)
+    start_date = models.DateTimeField(null=True, blank=True)
+    end_date = models.DateTimeField(null=True, blank=True)
     state = models.CharField(max_length=12, default='queued', choices=[
         ('queued', 'Queued'), ('running', 'Generating'), ('completed', 'Ready'), ('failed', 'Failed'),
     ])

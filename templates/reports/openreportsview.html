@@ -64,7 +64,7 @@
                                     <td data-sort="{{ claim.created_date|date:'U' }}">{{ claim.created_date|date:'Y-m-d H:i:s T' }}</td>
                                     <td data-sort="{{ claim.repair_order_total }}">${{ claim.repair_order_total|floatformat:2|intcomma }}</td>
                                     <td><button type="submit" class="closeRoBtn btn btn-outline-primary w-md" data-claim-id="{{ claim.id }}">Close RO</button></td>
-                                    <td><input type="checkbox" class="rowCheckbox"/></td>
+                                    <td><input type="checkbox" class="rowCheckbox" data-claim-id="{{ claim.id }}"/></td>
                                   </tr>
                                 {% endfor %}
                               </tbody>
@@ -122,13 +122,11 @@
         <script>
           document.addEventListener('DOMContentLoaded', function () {
             const selectAllCheckbox = document.getElementById('selectAll');
-            const rowCheckboxes = document.querySelectorAll('.rowCheckbox');
             const closeAllBtn = document.getElementById('closeAllBtn');
-            const closeRoButtons = document.querySelectorAll('.closeRoBtn');
         
             // Select/Deselect all row checkboxes
             selectAllCheckbox.addEventListener('change', function() {
-              rowCheckboxes.forEach(checkbox => {
+              document.querySelectorAll('.rowCheckbox').forEach(checkbox => {
                 checkbox.checked = selectAllCheckbox.checked;
               });
             });
@@ -139,10 +137,9 @@
         
               // Collect the selected claim IDs
               const selectedClaims = [];
-              rowCheckboxes.forEach(checkbox => {
+              document.querySelectorAll('.rowCheckbox').forEach(checkbox => {
                 if (checkbox.checked) {
-                  const claimRow = checkbox.closest('tr');
-                  const claimId = claimRow.getAttribute('data-claim-id');
+                  const claimId = Number(checkbox.getAttribute('data-claim-id'));
                   selectedClaims.push(claimId);
                 }
               });
@@ -180,11 +177,11 @@
             });
         
             // Handle individual "Close RO" button clicks
-            closeRoButtons.forEach(button => {
-              button.addEventListener('click', function(event) {
-                event.preventDefault(); // Prevent default behavior
-        
-                const claimId = this.getAttribute('data-claim-id');
+            document.getElementById('bodyshopTable').addEventListener('click', function(event) {
+                const button = event.target.closest('.closeRoBtn');
+                if (!button) return;
+                event.preventDefault();
+                const claimId = Number(button.getAttribute('data-claim-id'));
         
                 // Send the individual claim ID to the server via AJAX
                 fetch("{% url 'reports:ro-status' %}", {
@@ -210,7 +207,6 @@
                 .catch(error => {
                   console.error('Error:', error);
                 });
-              });
             });
           });
         </script>        

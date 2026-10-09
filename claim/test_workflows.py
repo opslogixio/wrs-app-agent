@@ -92,6 +92,19 @@ class ContributorWorkflowTests(TestCase):
                 self.assertEqual(self.line.claim_status, self.statuses['Rework'])
                 self.assertTrue(Journal.objects.filter(line=self.line, comment=f'Resolved {current}').exists())
 
+    def test_successful_save_clears_a_draft_even_without_following_error_redirect(self):
+        self.set_status('Rejected')
+        payload = {'line_id': self.line.pk, 'claim_status': self.statuses['Rework'].pk}
+        self.client.post(self.update_url, payload)
+        self.assertIn('line_edit_draft', self.client.session)
+        payload['comment'] = 'Issue corrected'
+        self.client.post(self.update_url, payload)
+        self.assertNotIn('line_edit_draft', self.client.session)
+        self.set_status('No Warranty')
+        chosen = [option.text.strip() for option in self.status_select(self.client.get(self.edit_url))
+            if 'selected' in option.attrib]
+        self.assertEqual(chosen, ['No Warranty'])
+
     def test_attention_to_rework_needs_no_comment_and_keeps_timestamp_precision(self):
         stamp = self.line.start_date.replace(microsecond=123456)
         LineTable.objects.filter(pk=self.line.pk).update(start_date=stamp)

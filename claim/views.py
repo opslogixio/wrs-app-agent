@@ -1204,6 +1204,10 @@ def line_update(request):
             user=request.user
         )
 
+    draft = request.session.get('line_edit_draft', {})
+    if draft.get('claim_id') == line.claim_id and draft.get('line_id') == line.pk:
+        request.session.pop('line_edit_draft')
+
     # ---------------------------------------------------------
     # RESPONSE MESSAGE
     # ---------------------------------------------------------

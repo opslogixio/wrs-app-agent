@@ -64,3 +64,11 @@ class OpenQueueTotalsTests(TestCase):
         self.assertEqual(self.client.get(reverse('reports:open-reports-view', args=[self.foreign.pk])).status_code, 404)
         self.client.logout()
         self.assertEqual(self.client.get(self.url).status_code, 302)
+
+    def test_queue_close_action_uses_numeric_ids_and_removes_closed_claim(self):
+        response = self.client.post(reverse('reports:ro-status'),
+            {'claim_ids': [self.claim.pk], 'ro_status': 'Closed'}, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.claim.refresh_from_db()
+        self.assertEqual(self.claim.ro_status, self.closed)
+        self.assertNotIn(self.claim.pk, [claim.pk for claim in self.client.get(self.url).context['open_claims']])

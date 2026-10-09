@@ -279,7 +279,10 @@ class ReportService:
         if filter_request == 'Aging':
             filters.update(linetable__claim_status__name='Requires Attention',
                 linetable__start_date__lte=today - timedelta(days=90))
-        comments = Journal.objects.filter(user__groups__name='wrs-admin').order_by('-created_date', '-pk')
+        latest_admin_day = (Journal.objects.filter(line_id=OuterRef('line_id'), user__groups__name='wrs-admin')
+            .order_by('-created_date', '-pk').values('created_date')[:1])
+        comments = Journal.objects.filter(user__groups__name='wrs-admin',
+            created_date=Subquery(latest_admin_day)).order_by('created_date', 'pk')
         lines = (LineTable.objects.filter(dealership_id=dealership_id)
             .select_related('claim_status', 'claim_type')
             .prefetch_related(Prefetch('journal_set', queryset=comments, to_attr='admin_comments')))
@@ -291,9 +294,7 @@ class ReportService:
         for claim in claims:
             item = {'claim': claim, 'lines': [
                 {'line': line, 'claim_age': (today - line.start_date).days if line.start_date else None,
-                    'comments': '\n'.join(journal.comment for journal in line.admin_comments
-                        if journal.created_date == line.admin_comments[0].created_date and journal.comment)
-                        if line.admin_comments else 'No Comment'}
+                    'comments': '\n'.join(journal.comment for journal in line.admin_comments if journal.comment) or 'No Comment'}
                 for line in claim.linetable_set.all()
             ]}
             key = 'bodyshop_claims' if any(tag.name == 'Bodyshop' for tag in claim.claim_tag.all()) else 'ra_claims'

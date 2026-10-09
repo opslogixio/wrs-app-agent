@@ -318,7 +318,7 @@ class ReportTaskTests(TestCase):
         self.assertNotIn('dealer comment', text)
         from django.template.loader import render_to_string
         for template in ('reports/rareport_pdf.html', 'reports/ra_reportsview.html'):
-            html = render_to_string(template, {**report, 'dealership': self.dealer})
+            html = render_to_string(template, {**report, 'dealership': self.dealer, 'dealership_id': self.dealer.pk})
             self.assertNotIn('<unsafe>', html)
 
     def test_daily_comments_use_group_membership_and_requested_date(self):

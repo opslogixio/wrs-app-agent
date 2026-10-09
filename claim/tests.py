@@ -108,10 +108,10 @@ class SecurityBaselineTests(TestCase):
     def test_invalid_identifiers_fail_without_server_error(self):
         self.assertEqual(self.client.post(reverse('claim:global-comment'), {'claim_id': 'invalid', 'comment': 'x'}).status_code, 404)
 
-    def test_claim_delete_is_post_only(self):
+    def test_claim_delete_get_only_confirms(self):
         self.client.force_login(self.admin)
         url = reverse('claim:delete-claim', args=[self.own.name, self.claim.repair_order])
-        self.assertEqual(self.client.get(url).status_code, 405)
+        self.assertContains(self.client.get(url), 'Are you sure')
         self.assertTrue(Claim.objects.filter(pk=self.claim.pk).exists())
         self.assertEqual(self.client.post(url).status_code, 302)
         self.assertFalse(Claim.objects.filter(pk=self.claim.pk).exists())

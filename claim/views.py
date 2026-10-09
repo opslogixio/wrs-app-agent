@@ -87,7 +87,7 @@ class ClaimFormView(DealershipAccessMixin, View):
 
             # Update the claim_tag in the Claim
             #claim.claim_tag = claim_form.cleaned_data['claim_tag']
-            claim.ro_status_id = 1 # this has not been tested yet.
+            claim.ro_status = get_object_or_404(RoStatus, name='Open')
             claim.save()
 
             claim.claim_tag.set(claim_form.cleaned_data['claim_tag'])
@@ -119,7 +119,8 @@ class ClaimFormView(DealershipAccessMixin, View):
             line_table = LineTable.objects.create(
                 claim=claim,
                 dealership_id=dealership,
-                claim_type=claim_type_init
+                claim_type=claim_type_init,
+                claim_status=get_object_or_404(Status, name='New'),
             )
 
             # Handle uploaded PDF file

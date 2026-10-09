@@ -152,18 +152,35 @@ class BackgroundReportTests(TestCase):
         self.assertEqual(status.json()['state'], 'completed')
         self.assertTrue(status.json()['download_url'])
 
-    def test_every_report_type_renders_local_pdf_without_network(self):
+    def test_every_report_type_renders_data_in_local_pdf(self):
         from .jobs import enqueue_report, claim_next_job, process_job, report_path
-        from datetime import date
+        from claim.models import Claim, ClaimType, LineTable, RoStatus, Status, Discrepancy
+        from .models import HistoricalClaim, HistoricalLineTable
+        from django.utils import timezone
+        from pypdf import PdfReader
+        status = Status.objects.create(name='Requires Attention')
+        open_status = RoStatus.objects.create(name='Open')
+        claim_type = ClaimType.objects.create(name='Warranty')
+        discrepancy = Discrepancy.objects.create(labor='10')
+        claim = Claim.objects.create(dealership=self.dealer, repair_order=7654321, ro_status=open_status)
+        LineTable.objects.create(claim=claim, dealership=self.dealer, claim_status=status,
+            claim_type=claim_type, claim_total='123.45', discrepancy=discrepancy)
+        historical = HistoricalClaim.objects.create(dealership=self.dealer, repair_order=7654321,
+            ro_status=open_status, created_date=timezone.now())
+        HistoricalLineTable.objects.create(claim=historical, dealership=self.dealer, claim_status=status, claim_total='123.45')
+        today = timezone.localdate()
         for name in ('Daily Report', 'Archived Report', 'Discrepancy Report', 'RA Report'):
             with self.subTest(report_type=name):
                 job = enqueue_report(self.user, self.dealer, name,
-                    None if name == 'RA Report' else date(2026, 10, 8),
-                    date(2026, 10, 9) if name == 'Discrepancy Report' else None)
+                    None if name == 'RA Report' else today,
+                    today if name == 'Discrepancy Report' else None)
                 process_job(claim_next_job())
                 job.refresh_from_db()
                 self.assertEqual(job.state, 'completed', job.error)
                 self.assertTrue(report_path(job).is_file())
+                text = '\n'.join(page.extract_text() for page in PdfReader(report_path(job)).pages)
+                self.assertIn('7654321', text)
+                self.assertIn(self.dealer.name, text)
 
     def test_foreign_user_or_revoked_membership_cannot_read_job(self):
         job = self.queue()

@@ -203,6 +203,18 @@ class SecurityBaselineTests(TestCase):
             self.client.logout()
             self.assertEqual(self.client.get(reverse('claim:download-pdf', args=[pdf.pk])).status_code, 302)
 
+    def test_new_claim_resolves_named_statuses_without_assuming_ids(self):
+        new = Status.objects.create(name='New')
+        tag = Tag.objects.create(name='Warranty')
+        response = self.client.post(reverse('claim:claim-form', args=[self.own.pk]), {
+            'dealership': self.own.pk, 'repair_order': '777',
+            'claim_tag': [tag.pk], 'comment': 'Initial comment',
+        })
+        self.assertEqual(response.status_code, 302)
+        claim = Claim.objects.get(dealership=self.own, repair_order=777)
+        self.assertEqual(claim.ro_status, self.open)
+        self.assertEqual(claim.linetable_set.get().claim_status, new)
+
     def test_failed_claim_creation_rolls_back_all_records(self):
         tag = Tag.objects.create(name='Missing Claim Type')
         before = Claim.objects.count()
@@ -268,7 +280,7 @@ class QueuePaginationTests(TestCase):
     def test_queue_data_queries_are_bounded_and_foreign_lines_are_excluded(self):
         from .views import PendingClaimQueueListView
         from django.test import RequestFactory
-        claim = Claim.objects.filter(dealership=self.dealer).first()
+        claim = Claim.objects.filter(dealership=self.dealer).order_by('-repair_order').first()
         LineTable.objects.create(claim=claim, dealership=self.foreign, claim_status=self.statuses['Pending'])
         request = RequestFactory().get('/', {'dealership_id': self.dealer.pk})
         request.user = self.user

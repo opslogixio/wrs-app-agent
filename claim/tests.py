@@ -674,3 +674,72 @@ class CompletionDateRequirementTests(TestCase):
                 self.line.refresh_from_db()
                 self.assertEqual(self.line.claim_status, self.statuses['New'])
         self.assertFalse(Journal.objects.exists())
+
+
+class RepairOrderSearchTests(TestCase):
+    setUpTestData = classmethod(SecurityBaselineTests.setUpTestData.__func__)
+    setUp = SecurityBaselineTests.setUp
+
+    def search(self, query='123', **extra):
+        return self.client.get(reverse('claim:search-ro'), {
+            'dealership_id': self.own.pk, 'repair_order': query, **extra})
+
+    def test_search_displays_details_and_repeat_search(self):
+        self.claim.claim_tag.add(Tag.objects.create(name='Bodyshop'))
+        Journal.objects.create(claim=self.claim, line=self.line, user=self.dealer,
+            comment='Customer called <script>alert(1)</script>')
+        attachment = PdfFile.objects.create(claim=self.claim, pdf_name='Repair photo', pdf_file='private/photo.png')
+        response = self.search(' 123 ')
+        for text in ('Repair Order 123', 'Requires Attention', 'Warranty', '$123.45', 'Bodyshop',
+                     'Repair photo', 'Customer called &lt;script&gt;', 'name="repair_order"', 'value="123"'):
+            self.assertContains(response, text)
+        self.assertContains(response, reverse('claim:download-pdf', args=[attachment.pk]))
+        self.assertContains(response, reverse('claim:dealer-claim-update', args=[self.claim.pk, self.own.pk]))
+        self.assertNotContains(response, '<script>alert(1)</script>')
+        self.assertEqual([claim.pk for claim in response.context['repair_orders']], [self.claim.pk])
+
+    def test_search_rejects_foreign_dealership_and_legacy_line_leaks(self):
+        response = self.search(dealership_id=self.other.pk)
+        self.assertEqual(response.status_code, 404)
+        rogue = LineTable.objects.create(claim=self.claim, dealership=self.other,
+            line_num='foreign-line-secret', claim_status=self.status)
+        Journal.objects.create(claim=self.claim, line=rogue, comment='foreign-comment-secret')
+        response = self.search()
+        self.assertNotContains(response, 'foreign-line-secret')
+        self.assertNotContains(response, 'foreign-comment-secret')
+        self.assertEqual(response.context['repair_orders'][0].search_total, Decimal('123.45'))
+
+    def test_empty_and_unmatched_search_keep_search_form(self):
+        for query in ('', ' ', '999999', '<script>'):
+            with self.subTest(query=query):
+                response = self.search(query)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'name="repair_order"')
+                self.assertEqual(response.context['page_obj'].paginator.count, 0)
+        self.client.logout()
+        self.assertEqual(self.search().status_code, 302)
+
+    def test_search_paginates_without_related_query_growth(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        with CaptureQueriesContext(connection) as queries:
+            self.search()
+        initial_count = len(queries)
+        for number in range(11):
+            claim = Claim.objects.create(dealership=self.own, repair_order=12300 + number, ro_status=self.open)
+            LineTable.objects.create(claim=claim, dealership=self.own, claim_status=self.status)
+            Journal.objects.create(claim=claim, user=self.dealer, comment='Another comment')
+        with CaptureQueriesContext(connection) as queries:
+            response = self.search()
+        self.assertEqual(len(queries), initial_count)
+        self.assertEqual(len(response.context['repair_orders']), 10)
+        self.assertContains(response, 'repair_order=123&amp;page=2')
+        page = self.search(page=2).context['page_obj']
+        self.assertEqual(len(page), 2)
+        self.assertEqual(page.paginator.count, 12)
+
+    def test_admin_and_viewer_links_match_permissions(self):
+        self.client.force_login(self.admin)
+        self.assertContains(self.search(), reverse('claim:claim-update', args=[self.claim.pk, self.own.pk]))
+        self.client.force_login(self.viewer)
+        self.assertNotContains(self.search(), 'View / edit claim')

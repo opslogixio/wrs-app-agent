@@ -1302,24 +1302,36 @@ def get_claim_status_totals(dealership_id, start_date, end_date):
 @login_required
 @require_GET
 def search_repair_order(request):
-    if request.method == 'GET':
-        dealership_id = request.GET.get('dealership_id', '')
-        repair_order = request.GET.get('repair_order', '')
+    from django.core.paginator import Paginator
 
-        # Perform a case-insensitive search for repair order numbers within the specified dealership
-        dealership = get_dealership(request.user, dealership_id)
-        claims = claims_for_user(request.user).filter(dealership=dealership, repair_order__icontains=repair_order).order_by('repair_order')[:100]
-
-        # Create a list of dictionaries containing repair order number and ID
-
-
-        context = {
-            'repair_orders': claims,
-            'dealership_id': dealership_id,
-            'repair_order': repair_order,
-        }
-
-        return render(request, 'claim/search_list.html', context)
+    dealership = get_dealership(request.user, request.GET.get('dealership_id'))
+    repair_order = request.GET.get('repair_order', '').strip()
+    claims = claims_for_user(request.user).filter(dealership=dealership)
+    claims = claims.filter(repair_order__icontains=repair_order) if repair_order else claims.none()
+    claims = claims.select_related('ro_status').prefetch_related(
+        'claim_tag',
+        Prefetch('linetable_set', queryset=lines_for_user(request.user).filter(
+            dealership=dealership).select_related(
+                'claim_type', 'claim_status', 'service_writer', 'technician', 'discrepancy'),
+            to_attr='search_lines'),
+        Prefetch('journal_set', queryset=Journal.objects.filter(
+            Q(line__isnull=True) | Q(line__in=lines_for_user(request.user))
+        ).select_related('user', 'line').order_by('-created_date', '-id'), to_attr='search_comments'),
+        Prefetch('pdffile_set', queryset=PdfFile.objects.order_by('-created_date', '-id'),
+            to_attr='search_attachments'),
+    ).order_by('repair_order', 'id')
+    page = Paginator(claims, 10).get_page(request.GET.get('page'))
+    for claim in page:
+        claim.search_total = sum((line.claim_total or Decimal('0') for line in claim.search_lines), Decimal('0'))
+        for line in claim.search_lines:
+            line.search_discrepancy = sum((getattr(line.discrepancy, field) or Decimal('0')
+                for field in ('labor', 'parts', 'maint', 'core', 'rental', 'sublet', 'other')), Decimal('0')) if line.discrepancy else None
+    return render(request, 'claim/search_list.html', {
+        'repair_orders': page, 'page_obj': page, 'dealership': dealership,
+        'dealership_id': dealership.pk, 'repair_order': repair_order,
+        'can_edit_claim': is_wrs_admin(request.user) or request.user.groups.filter(name='dealer-admin').exists(),
+        'claim_edit_route': 'claim:claim-update' if is_wrs_admin(request.user) else 'claim:dealer-claim-update',
+    })
 
 def monthly_revenue_by_claim_type(request):
     pass

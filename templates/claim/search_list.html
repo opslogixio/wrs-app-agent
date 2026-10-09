@@ -1,109 +1,77 @@
-<!-- claim_queue.html -->
 {% extends 'partials/base.html' %}
 {% load static %}
-{% static "" as baseUrl %}
-
-{% block css %}
-{% include 'partials/css.html' %}
-{% endblock css %}
-{% block extra_css %}
-{% endblock extra_css %}
+{% block css %}{% include 'partials/css.html' %}{% endblock %}
 {% block contents %}
-
-<div class="row">
-  <div class="col-lg-12">
-      <div class="card">
-          <div class="card-body">
-            <h1 class="card-title">
-              Search results for " <span style="color: #34A56F">{{ repair_order }} "</span>
-            </h1>        
-            <p class="card-title-desc">
-              Click on a repair order to view or edit claim.
-            </p>
-          </div>
+<div class="card">
+  <div class="card-body">
+    <h1 class="card-title">Repair Order Search — {{ dealership.name }}</h1>
+    <form method="get" action="{% url 'claim:search-ro' %}" class="row align-items-end g-3">
+      <input type="hidden" name="dealership_id" value="{{ dealership_id }}">
+      <div class="col-sm-8 col-lg-5">
+        <label for="repair-order-search" class="form-label">Repair Order</label>
+        <input id="repair-order-search" name="repair_order" class="form-control" value="{{ repair_order }}" placeholder="Enter a repair order number" required>
       </div>
-  </div>
-</div>           
-<div class="row">
-  <div class="col-lg-12">
-      <div class="card">
-          <div class="card-body">
-            <div class="table-responsive">
-              <script src="{% static 'js/table-sort.js' %}"></script>
-              <!--https://www.cssscript.com/minimal-table-sorter/-->
-              <table class="table table-hover table-bordered table-sort table-arrows" id="dataTable" width="100%" cellspacing="0">
-                <thead>
-                  <tr>
-                    <th class = "order-by-desc">Repair Order</th>
-                    <th>Claim Tag</th>
-                    <th>Created Date</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for claim in repair_orders %}
-                  
-                    <tr style="cursor:pointer;"
-                    {% if user.is_authenticated %}
-                        {% for group in user.groups.all %}
-                            {% if group.name == 'wrs-admin' %}
-                                onclick="window.location='{% url 'claim:claim-update' pk=claim.id dealership_id=dealership_id %}'"
-
-                            {% elif group.name == 'dealer-admin' %}
-                                onclick="window.location='{% url 'claim:dealer-claim-update' pk=claim.id dealership_id=dealership_id %}'"
-
-                            {% endif %}
-                        {% endfor %}
-                    {% endif %}       
-                    >
-                      <td>{{ claim.repair_order }}</td>
-                      <td>
-                      {% for tag in claim.claim_tag.all %}
-                        {{ tag.name }}
-                        {% if not forloop.last %}, {% endif %}
-                      {% endfor %}
-                      </td>
-                     
-                      <td>{{ claim.created_date }}</td>
-                      <td>Action to go here</td>
-                    </tr>
-                  
-                  {% endfor %}  
-                </tbody>
-              </table>
-            </div>
-
-          </div>
-      </div>
+      <div class="col-sm-auto"><button type="submit" class="btn btn-primary">Search</button></div>
+    </form>
+    {% if repair_order %}<p class="mt-3 mb-0">{{ page_obj.paginator.count }} result{{ page_obj.paginator.count|pluralize }} for “{{ repair_order }}”.</p>{% endif %}
   </div>
 </div>
-
-{% endblock contents %}
-{% block javascript %}
-        <!-- JAVASCRIPT 
-        <script src="{% static 'libs/jquery/jquery.min.js' %}"></script>
-        <script src="{% static 'libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script> -->
-        <script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
-        <script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
-        <script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
-        <!-- form mask -->
-        <script src="{% static 'libs/inputmask/min/jquery.inputmask.bundle.min.js' %}"></script>
-
-        <!-- form mask init -->
-        <script src="{% static 'js/pages/form-mask.init.js' %}"></script>
-        
-        <script src="{% static 'js/app.js' %}"></script>
-
-        <script type="text/javascript">
-            $(window).on('load', function() {
-                $('#manualModal').modal('show');
-            });
-        </script>
-
-{% endblock javascript %}
-{% block r_sidebar %}
-{% include 'partials/rightsidebar.html' %}
-{% endblock r_sidebar %}
-{% block footer %}
-{% include 'partials/footer.html' %}
+{% for claim in repair_orders %}
+<article class="card" aria-labelledby="repair-order-{{ claim.pk }}">
+  <div class="card-body">
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+      <h2 class="card-title" id="repair-order-{{ claim.pk }}">Repair Order {{ claim.repair_order }}</h2>
+      {% if can_edit_claim %}<a class="btn btn-outline-primary" href="{% url claim_edit_route pk=claim.pk dealership_id=dealership_id %}">View / edit claim</a>{% endif %}
+    </div>
+    <dl class="row mb-3">
+      <dt class="col-sm-2">RO Status</dt><dd class="col-sm-4">{{ claim.ro_status.name|default:"Not set" }}</dd>
+      <dt class="col-sm-2">Claim Total</dt><dd class="col-sm-4">${{ claim.search_total|floatformat:2 }}</dd>
+      <dt class="col-sm-2">Created</dt><dd class="col-sm-4">{{ claim.created_date|date:"M j, Y"|default:"Not set" }}</dd>
+      <dt class="col-sm-2">Last Updated</dt><dd class="col-sm-4">{{ claim.modified_date|date:"M j, Y"|default:"Not set" }}</dd>
+      <dt class="col-sm-2">Tags</dt><dd class="col-sm-10">{% for tag in claim.claim_tag.all %}<span class="badge bg-secondary">{{ tag.name }}</span> {% empty %}None{% endfor %}</dd>
+    </dl>
+    <h3 class="h5">Claim Lines</h3>
+    <div class="table-responsive">
+      <table class="table table-bordered table-hover">
+        <thead><tr><th>Line</th><th>Claim Type</th><th>Status</th><th>Amount</th><th>Completion Date</th><th>Paid Date</th><th>Compliant</th><th>Service Writer</th><th>Technician</th><th>Discrepancy Total</th></tr></thead>
+        <tbody>
+        {% for line in claim.search_lines %}
+          <tr><td>{{ line.line_num|default:"—" }}</td><td>{{ line.claim_type.name|default:"Not set" }}</td><td>{{ line.claim_status.name|default:"Not set" }}</td><td>${{ line.claim_total|default_if_none:0|floatformat:2 }}</td><td>{{ line.start_date|date:"M j, Y"|default:"Not set" }}</td><td>{{ line.paid_date|date:"M j, Y"|default:"Not set" }}</td><td>{{ line.compliant|yesno:"Yes,No,Not set" }}</td><td>{% if line.service_writer %}{{ line.service_writer.get_full_name|default:line.service_writer.email }}{% else %}Not assigned{% endif %}</td><td>{% if line.technician %}{{ line.technician.get_full_name|default:line.technician.email }}{% else %}Not assigned{% endif %}</td><td>{% if line.search_discrepancy != None %}${{ line.search_discrepancy|floatformat:2 }}{% else %}None{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="10">No claim lines recorded.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <h3 class="h5">Comments</h3>
+    {% for entry in claim.search_comments %}
+      <div class="border rounded p-2 mb-2">
+        <p class="small text-muted mb-1">{{ entry.created_date|date:"M j, Y" }} · {% if entry.user %}{{ entry.user.get_full_name|default:entry.user.email }}{% else %}Unknown user{% endif %} · {% if entry.line %}Line {{ entry.line.line_num }}{% else %}Claim comment{% endif %}</p>
+        <div>{{ entry.comment|linebreaksbr }}</div>
+      </div>
+    {% empty %}<p class="text-muted">No comments recorded.</p>{% endfor %}
+    <h3 class="h5">Attachments</h3>
+    <ul class="mb-0">
+      {% for attachment in claim.search_attachments %}<li><a href="{% url 'claim:download-pdf' pdf_id=attachment.pk %}">{{ attachment.pdf_name|default:"Download attachment" }}</a> <span class="text-muted">({{ attachment.created_date|date:"M j, Y" }})</span></li>{% empty %}<li>No attachments uploaded.</li>{% endfor %}
+    </ul>
+  </div>
+</article>
+{% empty %}
+<div class="alert alert-info" role="status">{% if repair_order %}No repair orders found for “{{ repair_order }}” at {{ dealership.name }}. Try another repair order above.{% else %}Enter a repair order number to search this dealership.{% endif %}</div>
+{% endfor %}
+{% if page_obj.has_other_pages %}
+<nav aria-label="Search result pages" class="d-flex justify-content-between align-items-center mb-4">
+  <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  <div>
+    {% if page_obj.has_previous %}<a class="btn btn-outline-secondary" href="?dealership_id={{ dealership_id }}&amp;repair_order={{ repair_order|urlencode }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
+    {% if page_obj.has_next %}<a class="btn btn-outline-secondary" href="?dealership_id={{ dealership_id }}&amp;repair_order={{ repair_order|urlencode }}&amp;page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+  </div>
+</nav>
+{% endif %}
 {% endblock %}
+{% block javascript %}
+<script src="{% static 'libs/metismenu/metisMenu.min.js' %}"></script>
+<script src="{% static 'libs/simplebar/simplebar.min.js' %}"></script>
+<script src="{% static 'libs/node-waves/waves.min.js' %}"></script>
+<script src="{% static 'js/app.js' %}"></script>
+{% endblock %}
+{% block r_sidebar %}{% include 'partials/rightsidebar.html' %}{% endblock %}
+{% block footer %}{% include 'partials/footer.html' %}{% endblock %}

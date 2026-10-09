@@ -107,7 +107,7 @@
           <div class="col-6" style="background-color: #fefcff;" >
             <div class="row">
               <div class="col-12 mb-1">
-                <label for="id_pdf_content" class="form-label">PDF Files List :</label>
+                <label for="id_pdf_content" class="form-label">Claim Files:</label>
               </div>
               <div class="col-12 mb-3" >
                 {% for file in pdf_file %}
@@ -118,11 +118,11 @@
             <div class="row mt-5">
               <form action="{% url 'claim:upload-pdf' %}" method="post" enctype="multipart/form-data">
                 {% csrf_token %}
-                <label for="pdf_file">Upload PDF File:</label>
+                <label for="pdf_file">Upload PDF or image:</label>
                   <div class="input-group col-12 mt-3">
                     <input type="hidden" name="claim_id" id="claim_id" value="{{ claim_id }}" required>
                     <button class="btn btn-outline-info" type="submit" id="inputGroupFileAddon03">Upload</button>
-                    <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" class="form-control" required>
+                    <input type="file" name="pdf_file" id="pdf_file" accept=".pdf,.png,.jpeg,.jpg,.gif" class="form-control" required>
                   </div>
               </form>
 

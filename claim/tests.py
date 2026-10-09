@@ -7,6 +7,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.exceptions import ValidationError
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
@@ -405,3 +406,121 @@ class BodyshopQueueContextTests(TestCase):
                 self.assertFalse(response.context['bodyshop'])
                 self.assertEqual(response.context['bodyshop_claims'], [])
                 self.assertNotIn('bodyshopTable', QueueTableParser(response.content.decode()).tables)
+
+
+class ImageAttachmentTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.dealer = Dealership.objects.create(name='Image Dealer')
+        cls.foreign = Dealership.objects.create(name='Other Images')
+        cls.user = get_user_model().objects.create_user(email='images@example.invalid')
+        cls.user.groups.add(Group.objects.create(name='dealer-admin'))
+        cls.user.dealership.add(cls.dealer)
+        cls.claim = Claim.objects.create(dealership=cls.dealer, repair_order=8000)
+        cls.foreign_claim = Claim.objects.create(dealership=cls.foreign, repair_order=8000)
+        cls.open = RoStatus.objects.create(name='Open')
+        cls.new = Status.objects.create(name='New')
+        cls.tag = Tag.objects.create(name='Warranty')
+        ClaimType.objects.create(name='Warranty')
+
+    def setUp(self):
+        self.client.force_login(self.user)
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.override = override_settings(BASE_DIR=Path(self.directory.name), MEDIA_ROOT=self.directory.name)
+        self.override.enable()
+        self.addCleanup(self.override.disable)
+
+    @staticmethod
+    def image_bytes(format, animated=False):
+        from io import BytesIO
+        from PIL import Image
+        buffer = BytesIO()
+        image = Image.new('RGB', (2, 2), 'blue')
+        options = {'save_all': True, 'append_images': [Image.new('RGB', (2, 2), 'red')]} if animated else {}
+        image.save(buffer, format=format, **options)
+        return buffer.getvalue()
+
+    def test_each_image_format_uploads_and_downloads_with_correct_mime(self):
+        for extension, format, mime in (('png', 'PNG', 'image/png'), ('jpg', 'JPEG', 'image/jpeg'),
+            ('jpeg', 'JPEG', 'image/jpeg'), ('GIF', 'GIF', 'image/gif')):
+            with self.subTest(extension=extension):
+                content = self.image_bytes(format, animated=format == 'GIF')
+                response = self.client.post(reverse('claim:upload-pdf'), {'claim_id': self.claim.pk,
+                    'pdf_file': SimpleUploadedFile(f'claim.{extension}', content, content_type='application/octet-stream')})
+                self.assertEqual(response.status_code, 302)
+                file = PdfFile.objects.order_by('-pk').first()
+                response = self.client.get(reverse('claim:download-pdf', args=[file.pk]))
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response['Content-Type'], mime)
+                self.assertEqual(response['X-Content-Type-Options'], 'nosniff')
+                self.assertIn('attachment;', response['Content-Disposition'])
+                self.assertEqual(b''.join(response.streaming_content), content)
+
+    def test_image_validation_rejects_spoofing_corruption_and_unsupported_formats(self):
+        for name, content in (
+            ('script.png', b'<script>alert(1)</script>'), ('renamed.jpg', self.image_bytes('PNG')),
+            ('truncated.png', self.image_bytes('PNG')[:25]), ('image.svg', b'<svg></svg>'),
+            ('photo.webp', self.image_bytes('PNG')), ('renamed.pdf', self.image_bytes('JPEG')),
+        ):
+            with self.subTest(name=name):
+                response = self.client.post(reverse('claim:upload-pdf'), {'claim_id': self.claim.pk,
+                    'pdf_file': SimpleUploadedFile(name, content)})
+                self.assertEqual(response.status_code, 400)
+        self.assertFalse(PdfFile.objects.exists())
+
+    def test_images_retain_dealership_and_csrf_protection(self):
+        url = reverse('claim:upload-pdf')
+        response = self.client.post(url, {'claim_id': self.foreign_claim.pk,
+            'pdf_file': SimpleUploadedFile('foreign.png', self.image_bytes('PNG'))})
+        self.assertEqual(response.status_code, 404)
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.user)
+        self.assertEqual(client.post(url, {'claim_id': self.claim.pk,
+            'pdf_file': SimpleUploadedFile('csrf.png', self.image_bytes('PNG'))}).status_code, 403)
+        self.assertFalse(PdfFile.objects.exists())
+        self.client.post(url, {'claim_id': self.claim.pk,
+            'pdf_file': SimpleUploadedFile('own.png', self.image_bytes('PNG'))})
+        file = PdfFile.objects.get()
+        file.claim = self.foreign_claim
+        file.save()
+        self.assertEqual(self.client.get(reverse('claim:download-pdf', args=[file.pk])).status_code, 404)
+
+    def test_claim_creation_accepts_image_attachment(self):
+        response = self.client.post(reverse('claim:claim-form', args=[self.dealer.pk]), {
+            'dealership': self.dealer.pk, 'repair_order': 8001, 'claim_tag': [self.tag.pk],
+            'comment': 'Image evidence', 'pdf_file': SimpleUploadedFile('evidence.jpeg', self.image_bytes('JPEG')),
+        })
+        self.assertEqual(response.status_code, 302)
+        file = PdfFile.objects.get()
+        self.assertEqual(file.claim.repair_order, 8001)
+        self.assertTrue(file.pdf_file.name.endswith('.jpeg'))
+
+    def test_all_attachment_forms_accept_images_and_preserve_file_position(self):
+        from .forms import ClaimLineUpdateForm, LinePdfFileForm
+        from .validators import validate_claim_file
+        upload = SimpleUploadedFile('image.png', self.image_bytes('PNG'))
+        upload.seek(4)
+        validate_claim_file(upload)
+        self.assertEqual(upload.tell(), 4)
+        for form in (PdfFileForm, ClaimLineUpdateForm, LinePdfFileForm):
+            field = form.base_fields['pdf_file']
+            field.clean(SimpleUploadedFile('image.gif', self.image_bytes('GIF')))
+            with self.assertRaises(ValidationError):
+                field.clean(SimpleUploadedFile('bad.png', b'not an image'))
+
+    def test_attachment_size_and_pixel_limits_are_enforced(self):
+        from .validators import validate_claim_file
+        with self.assertRaises(ValidationError):
+            validate_claim_file(SimpleUploadedFile('large.png', b'x' * (10 * 1024 * 1024 + 1)))
+        with patch('claim.validators.MAX_IMAGE_PIXELS', 1), self.assertRaises(ValidationError):
+            validate_claim_file(SimpleUploadedFile('large-pixels.png', self.image_bytes('PNG')))
+
+    def test_upload_controls_list_all_supported_formats(self):
+        for route, args in (('claim-form', [self.dealer.pk]), ('dealer-claim-update', [self.claim.pk, self.dealer.pk])):
+            response = self.client.get(reverse('claim:' + route, args=args))
+            self.assertContains(response, 'accept=".pdf,.png,.jpeg,.jpg,.gif"')
+        admin = get_user_model().objects.create_superuser(email='imageadmin@example.invalid')
+        self.client.force_login(admin)
+        self.assertContains(self.client.get(reverse('claim:claim-update', args=[self.claim.pk, self.dealer.pk])),
+            'accept=".pdf,.png,.jpeg,.jpg,.gif"')

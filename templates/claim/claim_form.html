@@ -85,12 +85,13 @@
                 </div>
               </div>
               
-              <!-- PDF File Upload -->
+              <!-- Claim attachment upload -->
         
               <div class="row mb-4">
-                <label class="col-form-label col-lg-2" for="id_pdf_file">PDF File:</label>
+                <label class="col-form-label col-lg-2" for="id_pdf_file">PDF or image:</label>
                 <div class="col-lg-10">
-                  <input type="file" name="pdf_file" id="id_pdf_file" class="form-control">
+                  <input type="file" name="pdf_file" id="id_pdf_file" accept=".pdf,.png,.jpeg,.jpg,.gif" class="form-control">
+                  {{ pdffile_form.pdf_file.errors }}
                 </div>
               </div>
 
@@ -138,9 +139,9 @@
             url: '/upload-url/',
             paramName: 'pdf_file',
             maxFilesize: 10, // Maximum file size in MB
-            acceptedFiles: '.pdf', // Only accept PDF files
-            dictDefaultMessage: 'Drag and drop a PDF file here or click to upload',
-            dictInvalidFileType: 'Only PDF files are allowed',
+            acceptedFiles: '.pdf,.png,.jpeg,.jpg,.gif',
+            dictDefaultMessage: 'Drag and drop a PDF or image here or click to upload',
+            dictInvalidFileType: 'PDF, PNG, JPEG/JPG, and GIF files are allowed',
             init: function () {
               // Add any additional configuration or event handling here, if needed
               this.on('success', function (file, response) {

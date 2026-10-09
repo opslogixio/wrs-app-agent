@@ -2,7 +2,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import FileResponse, Http404
 from django.conf import settings
 from pathlib import Path
-from .validators import validate_pdf
+from .validators import validate_claim_file, ATTACHMENT_CONTENT_TYPES
 from decorators.access import (in_group_required, accessible_dealerships, get_dealership,
     claims_for_user, lines_for_user, positive_id, safe_return_url, is_wrs_admin, DealershipAccessMixin)
 from django.shortcuts import render, redirect, get_object_or_404
@@ -846,9 +846,9 @@ def upload_pdf(request):
     if request.method == 'POST' and request.FILES.get('pdf_file'):
         pdf_file = request.FILES['pdf_file']
         try:
-            validate_pdf(pdf_file)
-        except ValidationError:
-            return HttpResponseBadRequest('Upload a valid PDF of at most 10 MB.')
+            validate_claim_file(pdf_file)
+        except ValidationError as error:
+            return HttpResponseBadRequest(' '.join(error.messages))
         claim_id = positive_id(request.POST.get('claim_id'))
 
         claim = get_object_or_404(claims_for_user(request.user), id=claim_id)
@@ -1851,7 +1851,8 @@ def download_pdf(request, pdf_id):
     upload_root = (root / 'static' / 'upload').resolve()
     if not path.is_relative_to(upload_root) or not path.is_file():
         raise Http404
-    response = FileResponse(path.open('rb'), as_attachment=True, filename=path.name, content_type='application/pdf')
+    response = FileResponse(path.open('rb'), as_attachment=True, filename=path.name,
+        content_type=ATTACHMENT_CONTENT_TYPES.get(path.suffix.lower(), 'application/octet-stream'))
     response['Cache-Control'] = 'private, no-store'
     response['X-Content-Type-Options'] = 'nosniff'
     return response

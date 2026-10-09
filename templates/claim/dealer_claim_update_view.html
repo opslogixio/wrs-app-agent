@@ -174,7 +174,17 @@
           <div id="datepicker6" class="table-responsive mb-3 mt-3">
             {% for line in line_table %}
 
-            <table class="table align-middle table-bordered" id="sample_editable_1" width="100%" cellspacing="0">
+            <form action="{% url 'claim:line-updates' %}"
+                  id="line_form_{{ line.id }}"
+                  class="claim-line-form"
+                  method="post"
+                  enctype="multipart/form-data">
+                {% csrf_token %}
+
+
+                <input type="hidden" name="line_id" value="{{ line.id }}">
+                <input type="hidden" id="hiddenInput.{{ line.id }}" name="hidden_input" value="">
+                <table class="table align-middle table-bordered" id="sample_editable_1" width="100%" cellspacing="0">
               
               
               <thead class="{% if line.claim_status.id == 1 %}table-light{% elif line.claim_status.id == 2 or line.claim_status.id == 4 %}table-success{% elif line.claim_status.id == 3 or line.claim_status.id == 6 %}table-danger{% elif line.claim_status.id == 5 %}table-info{% elif line.claim_status.id == 7 or line.claim_status.id == 8 %}table-warning{% else %}table-light{% endif %}">
@@ -192,16 +202,6 @@
               </thead>
               
               <tbody id="id_lineTable">
-                <form action="{% url 'claim:line-updates' %}"
-                  id="myForm.{{ line.id }}"
-                  class="claim-line-form"
-                  method="post"
-                  enctype="multipart/form-data">
-                {% csrf_token %}
-                
-                
-                <input type="hidden" name="line_id" value="{{ line.id }}">
-                <input type="hidden" id="hiddenInput.{{ line.id }}" name="hidden_input" value="">
                 <tr>
                   <td class="col-lg-1" rowspan="3">
                     <p style="border-color: #34A56F;">{{line.line_num}}</p>
@@ -252,7 +252,7 @@
                         cols="50"
                         name="comment"
                         class="form-control line-comment"
-                    ></textarea>
+                    >{{ line.edit_values.comment }}</textarea>
 
                     <div class="text-danger mt-1 comment-requirement d-none">
                         A comment is required for this status change.
@@ -281,10 +281,12 @@
                     
                   </td>
                 </tr>
-              </form>
+
               </tbody>
               
             </table>
+</form>
+
             {% endfor %}
           </div>
         </div>
@@ -448,65 +450,7 @@
             placement: 'bottom'
           });
           </script>
-          <script>
-          document.addEventListener('DOMContentLoaded', function () {
-
-              // Status IDs that require a comment when changing TO them.
-              const commentRequiredStatuses = [
-                  '2', // No Warranty
-                  '3', // Not Submitted
-                  '6', // Rejected
-                  '7'  // Requires Attention
-              ];
-
-              document.querySelectorAll('.claim-line-form').forEach(function (form) {
-
-                  const statusSelect = form.querySelector('.claim-status');
-                  const commentField = form.querySelector('.line-comment');
-                  const requirementMessage = form.querySelector('.comment-requirement');
-
-                  if (!statusSelect || !commentField) {
-                      return;
-                  }
-
-                  function updateCommentRequirement() {
-                      const originalStatus = statusSelect.dataset.originalStatus;
-                      const currentStatus = statusSelect.value;
-
-                      // Has the status actually changed?
-                      const statusChanged = currentStatus !== originalStatus;
-
-                      // Require a comment only when:
-                      // 1. The status changed.
-                      // 2. The NEW status requires a comment.
-                      const commentRequired =
-                          statusChanged &&
-                          commentRequiredStatuses.includes(currentStatus);
-
-                      // Apply/remove HTML required validation.
-                      commentField.required = commentRequired;
-
-                      // Show/hide the requirement message.
-                      if (requirementMessage) {
-                          requirementMessage.classList.toggle(
-                              'd-none',
-                              !commentRequired
-                          );
-                      }
-                  }
-
-                  // Reevaluate whenever the status changes.
-                  statusSelect.addEventListener(
-                      'change',
-                      updateCommentRequirement
-                  );
-
-                  // Establish the correct state when the page loads.
-                  updateCommentRequirement();
-              });
-
-          });
-          </script>
+          <script src="{% static 'js/pages/claim-line-validation.js' %}"></script>
  
        
           

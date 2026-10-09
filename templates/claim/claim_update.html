@@ -181,7 +181,17 @@
         <div class="row">
           <div id="datepicker6" class="table-responsive mb-3 mt-3">
             {% for line in line_table %}
-            <table class="table align-middle table-bordered" id="sample_editable_1" width="100%" cellspacing="0">
+            <form
+                    action="{% url 'claim:line-updates' %}"
+                    id="line_form_{{ line.id }}"
+                    class="line-update-form"
+                    method="post"
+                    enctype="multipart/form-data"
+                >
+                {% csrf_token %}
+                <input type="hidden" name="line_id" value="{{ line.id }}">
+                <input type="hidden" id="hiddenInput.{{ line.id }}" name="hidden_input" value="">
+                <table class="table align-middle table-bordered" id="sample_editable_1" width="100%" cellspacing="0">
               
               <thead class="{% if line.claim_status.id == 1 %}table-light{% elif line.claim_status.id == 2 or line.claim_status.id == 4 %}table-success{% elif line.claim_status.id == 3 or line.claim_status.id == 6 %}table-danger{% elif line.claim_status.id == 5 %}table-info{% elif line.claim_status.id == 7 or line.claim_status.id == 8 %}table-warning{% else %}table-light{% endif %}">
                 
@@ -199,25 +209,15 @@
               
               <tbody id="id_lineTable">
                 
-                <form
-                    action="{% url 'claim:line-updates' %}"
-                    id="line_form_{{ line.id }}"
-                    class="line-update-form"
-                    method="post"
-                    enctype="multipart/form-data"
-                >
-                {% csrf_token %}
-                <input type="hidden" name="line_id" value="{{ line.id }}">
-                <input type="hidden" id="hiddenInput.{{ line.id }}" name="hidden_input" value="">
                 <tr>
                   <td class="col-lg-1" rowspan="3">
-                    <input style="border-color: #34A56F;" type="text" class="form-control" name="line_num" id="id_claimtotal_id" value="{{line.line_num}}">
+                    <input style="border-color: #34A56F;" type="text" class="form-control" name="line_num" id="id_claimtotal_id" value="{{ line.edit_values.line_num }}">
                   </td>
                   <td class="col-lg-2">
                     <select id="claim_type" name="claim_type" class="form-select"> 
                       {% for value, label in form.fields.claim_type.choices %}
                       
-                      <option value="{{ value }}" {% if value == line.claim_type.id %}selected{% endif %}>{{ label }}</option>
+                      <option value="{{ value }}" {% if value|stringformat:"s" == line.edit_values.claim_type %}selected{% endif %}>{{ label }}</option>
                       {% endfor %}
                     </select>
                   </td>
@@ -232,7 +232,7 @@
                           <option
                               value="{{ value }}"
                               data-status-name="{{ label|lower }}"
-                              {% if value == line.claim_status.id %}selected{% endif %}
+                              {% if value|stringformat:"s" == line.edit_values.claim_status %}selected{% endif %}
                           >
                               {{ label }}
                           </option>
@@ -240,7 +240,7 @@
                   </select>
                   </td>
                   <td class="col-lg-1">
-                    <input name="compliant" type="checkbox" class="form-check-input" id="id_compliant_id" {% if line.compliant %}checked{% endif %}>
+                    <input name="compliant" type="checkbox" class="form-check-input" id="id_compliant_id" {% if line.edit_values.compliant %}checked{% endif %}>
                   </td>
                   <td class="col-lg-5" rowspan="3">
                       <textarea
@@ -249,7 +249,7 @@
                           name="comment"
                           class="form-control line-comment"
                           placeholder="Enter a comment"
-                      ></textarea>
+                      >{{ line.edit_values.comment }}</textarea>
 
                       <div class="invalid-feedback">
                           A comment is required when the status is Not Submitted or Rejected.
@@ -279,28 +279,30 @@
                 <tr>
                   <td class="col-lg-2">
                     
-                    <input type="text" class="form-control" name="claim_total" id="id_claimtotal_id" value="{{ line.claim_total}}">
+                    <input type="text" class="form-control" name="claim_total" id="id_claimtotal_id" value="{{ line.edit_values.claim_total }}">
 
                   </td>
                   <td class="col-lg-2"> 
                     <div class="input-daterange input-group" id="datepicker6" data-date-format="MM dd, yyyy" data-date-autoclose="true" data-provide="datepicker" data-date-container='#datepicker6' data-date-end-date="0d">
-                      <input type="text" class="form-control" name="start_date" id="start_date" value="{% if line.start_date %}{{ line.start_date|date:'F d, Y' }}{% endif %}" placeholder="Start Date"/>
+                      <input type="text" class="form-control" name="start_date" id="completion_date_{{ line.id }}" value="{{ line.edit_values.start_date }}" placeholder="Completion Date"/>
                     </div>
                   </td>
                   <td class="col-lg-1">
                     <input type="checkbox" class="form-check-input" id="myCheckbox" onclick="redirectToUrl(this, '{% url 'claim:discrepancy' line_id=line.id %}');" {% if line.discrepancy %}checked{% endif %}>
                   </td>
                 </tr>
-              </form>
-              <form method="post"
+
+
+              </tbody>
+
+            </table>
+</form>
+<form method="post"
                     id="delete_form_{{ line.id }}"
                     action="{% url 'claim:delete-line' line_id=line.id %}"
                     onsubmit="return confirm('Are you sure you want to delete line {{ line.line_num }}? This action cannot be undone.');">
                   {% csrf_token %}
               </form>
-              </tbody>
-              
-            </table>
             {% endfor %}
           </div>
         </div>
@@ -691,160 +693,7 @@
             placement: 'bottom'
           });
           </script>
-          <script>
-          document.addEventListener('DOMContentLoaded', function () {
-              const requiredCommentStatuses = [
-                  'not submitted',
-                  'rejected',
-                  'requires attention'
-              ];
-
-              function getSelectedStatusName(statusSelect) {
-                  const selectedOption =
-                      statusSelect.options[statusSelect.selectedIndex];
-
-                  return (
-                      selectedOption.dataset.statusName ||
-                      selectedOption.textContent ||
-                      ''
-                  ).trim().toLowerCase();
-              }
-
-              function statusHasChanged(statusSelect) {
-                  const originalStatus =
-                      String(statusSelect.dataset.originalStatus || '');
-
-                  const selectedStatus =
-                      String(statusSelect.value || '');
-
-                  return selectedStatus !== originalStatus;
-              }
-
-              function commentIsRequired(statusSelect) {
-                  const statusName = getSelectedStatusName(statusSelect);
-                  const changed = statusHasChanged(statusSelect);
-
-                  console.log('Original status:', statusSelect.dataset.originalStatus);
-                  console.log('Selected status:', statusSelect.value);
-                  console.log('Selected status name:', statusName);
-                  console.log('Status changed:', changed);
-
-                  return (
-                      changed &&
-                      requiredCommentStatuses.includes(statusName)
-                  );
-              }
-
-              function updateCommentRequirement(form) {
-                  const statusSelect =
-                      form.querySelector('.claim-status');
-
-                  const commentField =
-                      form.querySelector('.line-comment');
-
-                  const requirementMessage =
-                      form.querySelector('.comment-requirement');
-
-                  if (!statusSelect || !commentField) {
-                      return;
-                  }
-
-                  const isRequired =
-                      commentIsRequired(statusSelect);
-
-                  console.log('Comment required:', isRequired);
-
-                  commentField.required = isRequired;
-
-                  if (requirementMessage) {
-                      requirementMessage.classList.toggle(
-                          'd-none',
-                          !isRequired
-                      );
-                  }
-
-                  if (!isRequired) {
-                      commentField.classList.remove('is-invalid');
-                  }
-              }
-
-              document
-                  .querySelectorAll('.line-update-form')
-                  .forEach(function (form) {
-
-                      const statusSelect =
-                          form.querySelector('.claim-status');
-
-                      const commentField =
-                          form.querySelector('.line-comment');
-
-                      if (!statusSelect || !commentField) {
-                          console.error(
-                              'Missing status or comment field:',
-                              form
-                          );
-                          return;
-                      }
-
-                      // Evaluate the state when the page first loads.
-                      updateCommentRequirement(form);
-
-                      // Re-evaluate whenever the status changes.
-                      statusSelect.addEventListener(
-                          'change',
-                          function () {
-
-                              updateCommentRequirement(form);
-
-                              if (commentIsRequired(statusSelect)) {
-                                  commentField.focus();
-                              }
-                          }
-                      );
-
-                      // Remove the invalid styling once a comment is entered.
-                      commentField.addEventListener(
-                          'input',
-                          function () {
-
-                              if (commentField.value.trim()) {
-                                  commentField.classList.remove(
-                                      'is-invalid'
-                                  );
-                              }
-                          }
-                      );
-
-                      // Final validation before submitting.
-                      form.addEventListener(
-                          'submit',
-                          function (event) {
-
-                              updateCommentRequirement(form);
-
-                              if (
-                                  commentIsRequired(statusSelect) &&
-                                  !commentField.value.trim()
-                              ) {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-
-                                  commentField.classList.add(
-                                      'is-invalid'
-                                  );
-
-                                  commentField.focus();
-
-                                  commentField.scrollIntoView({
-                                      behavior: 'smooth',
-                                      block: 'center'
-                                  });
-                              }
-                          }
-                      );
-                  });
-          });
-          </script>
+          <script src="{% static 'js/pages/claim-line-validation.js' %}"></script>
 
   {% endblock javascript %}
   {% block r_sidebar %}

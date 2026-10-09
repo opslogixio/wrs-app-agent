@@ -524,3 +524,127 @@ class ImageAttachmentTests(TestCase):
         self.client.force_login(admin)
         self.assertContains(self.client.get(reverse('claim:claim-update', args=[self.claim.pk, self.dealer.pk])),
             'accept=".pdf,.png,.jpeg,.jpg,.gif"')
+
+
+class CompletionDateRequirementTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.dealer = Dealership.objects.create(name='Completion Dates')
+        cls.admin = get_user_model().objects.create_superuser(email='completion@example.invalid')
+        cls.statuses = {name: Status.objects.create(name=name) for name in ('New', 'Pending', 'Requires Attention', 'Rework')}
+        cls.type = ClaimType.objects.create(name='Warranty')
+        cls.other_type = ClaimType.objects.create(name='Repair')
+        cls.claim = Claim.objects.create(dealership=cls.dealer, repair_order=9001,
+            ro_status=RoStatus.objects.create(name='Open'))
+        cls.line = LineTable.objects.create(claim=cls.claim, dealership=cls.dealer,
+            line_num='1', claim_type=cls.type, claim_status=cls.statuses['New'], claim_total='10.00')
+        cls.second = LineTable.objects.create(claim=cls.claim, dealership=cls.dealer,
+            line_num='2', claim_type=cls.type, claim_status=cls.statuses['New'], claim_total='20.00')
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+        self.url = reverse('claim:line-updates')
+        self.edit_url = reverse('claim:claim-update', args=[self.claim.pk, self.dealer.pk])
+
+    def payload(self, status):
+        return {'line_id': self.line.pk, 'line_num': 'edited-line', 'claim_type': self.other_type.pk,
+            'claim_status': self.statuses[status].pk, 'claim_total': '123.45', 'start_date': '',
+            'comment': 'User entered comment <evidence>', 'compliant': 'on'}
+
+    @staticmethod
+    def fields(response, line_id):
+        import html5lib
+        root = html5lib.parse(response.content.decode(), namespaceHTMLElements=False)
+        form = next(node for node in root.iter('form') if node.get('id') == f'line_form_{line_id}')
+        return {node.get('name'): node for node in form.iter() if node.get('name')}
+
+    def test_required_statuses_reject_missing_date_without_saving_and_preserve_fields(self):
+        for status in ('Pending', 'Requires Attention'):
+            with self.subTest(status=status):
+                payload = self.payload(status)
+                response = self.client.post(self.url, payload)
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(response.url, self.edit_url + f'#line_form_{self.line.pk}')
+                self.line.refresh_from_db()
+                self.assertEqual(self.line.claim_status.name, 'New')
+                self.assertEqual(self.line.claim_total, Decimal('10.00'))
+                self.assertFalse(Journal.objects.exists())
+                response = self.client.get(response.url)
+                self.assertContains(response, 'Completion Date is required')
+                fields = self.fields(response, self.line.pk)
+                self.assertEqual(fields['line_num'].get('value'), 'edited-line')
+                self.assertEqual(fields['claim_total'].get('value'), '123.45')
+                self.assertEqual(fields['comment'].text.strip(), payload['comment'])
+                self.assertIn('checked', fields['compliant'].attrib)
+                for field in ('claim_type', 'claim_status'):
+                    selected = next(option for option in fields[field] if 'selected' in option.attrib)
+                    self.assertEqual(selected.get('value'), str(payload[field]))
+                self.assertNotIn('line_edit_draft', self.client.session)
+                other = self.fields(response, self.second.pk)
+                self.assertEqual(other['claim_total'].get('value'), '20.00')
+                self.assertEqual((other['comment'].text or '').strip(), '')
+
+    def test_user_can_add_date_and_resubmit_preserved_values(self):
+        for status in ('Pending', 'Requires Attention'):
+            with self.subTest(status=status):
+                payload = self.payload(status)
+                response = self.client.post(self.url, payload)
+                self.client.get(response.url)
+                payload['start_date'] = 'October 08, 2026'
+                response = self.client.post(self.url, payload)
+                self.assertEqual(response.status_code, 302)
+                self.line.refresh_from_db()
+                self.assertEqual(self.line.start_date, date(2026, 10, 8))
+                self.assertEqual(self.line.claim_status.name, status)
+                self.assertEqual(self.line.claim_total, Decimal('123.45'))
+                self.assertTrue(self.line.compliant)
+                self.assertEqual(Journal.objects.filter(line=self.line).count(), 1 if status == 'Pending' else 2)
+
+    def test_explicit_date_clear_is_rejected_but_omitted_date_is_retained(self):
+        LineTable.objects.filter(pk=self.line.pk).update(claim_status=self.statuses['Pending'], start_date=date(2026, 10, 8))
+        response = self.client.post(self.url, {'line_id': self.line.pk, 'claim_status': self.statuses['Pending'].pk, 'start_date': ''})
+        self.assertEqual(response.url, self.edit_url + f'#line_form_{self.line.pk}')
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.start_date, date(2026, 10, 8))
+        response = self.client.post(self.url, {'line_id': self.line.pk, 'claim_status': self.statuses['Pending'].pk, 'comment': 'Keep existing date'})
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.start_date, date(2026, 10, 8))
+        self.assertEqual(Journal.objects.filter(line=self.line).count(), 1)
+
+    def test_optional_status_can_save_without_date(self):
+        payload = self.payload('Rework')
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, 302)
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.claim_status.name, 'Rework')
+        self.assertIsNone(self.line.start_date)
+
+    def test_invalid_date_and_missing_comment_preserve_values(self):
+        payload = self.payload('Pending')
+        payload['start_date'] = 'not-a-date'
+        response = self.client.post(self.url, payload)
+        response = self.client.get(response.url)
+        self.assertEqual(self.fields(response, self.line.pk)['start_date'].get('value'), 'not-a-date')
+        payload = self.payload('Requires Attention')
+        payload['start_date'] = 'October 08, 2026'
+        payload['comment'] = ''
+        response = self.client.post(self.url, payload)
+        response = self.client.get(response.url)
+        self.assertContains(response, 'A comment is required')
+        self.assertEqual(self.fields(response, self.line.pk)['start_date'].get('value'), 'October 08, 2026')
+        self.assertFalse(Journal.objects.exists())
+
+    def test_completion_date_endpoint_cannot_clear_required_dates(self):
+        LineTable.objects.filter(pk=self.line.pk).update(claim_status=self.statuses['Requires Attention'], start_date=date(2026, 10, 8))
+        response = self.client.post(reverse('claim:start-date'), {'line_id': self.line.pk, 'start_date': ''})
+        self.assertEqual(response.status_code, 400)
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.start_date, date(2026, 10, 8))
+
+    def test_dealer_cannot_gain_permission_to_edit_completion_date(self):
+        dealer = get_user_model().objects.create_user(email='completion-dealer@example.invalid')
+        dealer.groups.add(Group.objects.create(name='dealer-admin'))
+        dealer.dealership.add(self.dealer)
+        self.client.force_login(dealer)
+        response = self.client.post(self.url, {'line_id': self.line.pk, 'start_date': 'October 08, 2026'})
+        self.assertEqual(response.status_code, 403)

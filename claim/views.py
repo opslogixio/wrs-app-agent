@@ -345,6 +345,45 @@ class OpenRoQueueListView(ListView):
 # FULL CLAIM VIEW
 #####################################################################################
 
+COMPLETION_DATE_REQUIRED_STATUSES = {'pending', 'requires attention'}
+
+
+def line_update_error(request, line, message):
+    """Keep entered values across validation redirects without persisting the line."""
+    values = {key: request.POST[key] for key in (
+        'line_num', 'claim_type', 'claim_status', 'claim_total', 'start_date', 'comment'
+    ) if key in request.POST}
+    if is_wrs_admin(request.user):
+        values['compliant'] = request.POST.get('compliant') == 'on'
+    request.session['line_edit_draft'] = {
+        'claim_id': line.claim_id, 'line_id': line.pk, 'values': values,
+    }
+    messages.error(request, message)
+    route = 'claim-update' if is_wrs_admin(request.user) else 'dealer-claim-update'
+    url = reverse('claim:' + route, args=[line.claim_id, line.dealership_id])
+    return redirect(url + f'#line_form_{line.pk}')
+
+
+def line_edit_values(request, claim, queryset):
+    draft = request.session.get('line_edit_draft', {})
+    if draft.get('claim_id') == claim.pk:
+        request.session.pop('line_edit_draft')
+    else:
+        draft = {}
+    lines = list(queryset)
+    for line in lines:
+        line.edit_values = {
+            'line_num': str(line.line_num or ''), 'claim_type': str(line.claim_type_id or ''),
+            'claim_status': str(line.claim_status_id or ''),
+            'claim_total': str(line.claim_total) if line.claim_total is not None else '',
+            'start_date': line.start_date.strftime('%B %d, %Y') if line.start_date else '',
+            'comment': '', 'compliant': bool(line.compliant),
+        }
+        if draft.get('line_id') == line.pk:
+            line.edit_values.update(draft['values'])
+    return lines
+
+
 @method_decorator(in_group_required('wrs-admin'), name='dispatch')
 class ClaimLineUpdateView(DealershipAccessMixin, UpdateView):
     model = Claim
@@ -358,7 +397,8 @@ class ClaimLineUpdateView(DealershipAccessMixin, UpdateView):
         user = self.request.user
         dealership_id = self.kwargs.get('dealership_id')
         dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
-        line_table = LineTable.objects.filter(claim=claim, dealership_id=dealership_id)
+        line_table = line_edit_values(self.request, claim,
+            LineTable.objects.filter(claim=claim, dealership_id=dealership_id))
         reconciliation = LineTable.objects.filter(claim=claim, dealership_id=dealership_id, discrepancy__isnull=False).select_related('discrepancy')
         discrepancies = [line.discrepancy for line in reconciliation if line.discrepancy is not None]
         #journal = Journal.objects.filter(claim=claim)
@@ -735,7 +775,8 @@ class DealerClaimLineUpdateView(DealershipAccessMixin, UpdateView):
         claim = self.object
         dealership_id = self.kwargs.get('dealership_id')
         dealership = get_object_or_404(accessible_dealerships(self.request.user), id=dealership_id)
-        line_table = LineTable.objects.filter(claim=claim, dealership_id=dealership_id)
+        line_table = line_edit_values(self.request, claim,
+            LineTable.objects.filter(claim=claim, dealership_id=dealership_id))
         reconciliation = LineTable.objects.filter(claim=claim, dealership_id=dealership_id, discrepancy__isnull=False).select_related('discrepancy')
         journal = Journal.objects.filter(claim=claim)
         pdf_file = PdfFile.objects.filter(claim=claim)
@@ -962,20 +1003,12 @@ def line_update(request):
     claim_status_id = request.POST.get('claim_status') or line.claim_status_id
 
     if not claim_status_id:
-        messages.error(
-            request,
-            'A claim status must be selected.'
-        )
-        return redirect(forwarding_url)
+        return line_update_error(request, line, 'A claim status must be selected.')
 
     try:
         new_claim_status_id = int(claim_status_id)
     except (TypeError, ValueError):
-        messages.error(
-            request,
-            'Invalid claim status.'
-        )
-        return redirect(forwarding_url)
+        return line_update_error(request, line, 'Invalid claim status.')
 
     new_claim_status = get_object_or_404(
         Status,
@@ -1006,16 +1039,9 @@ def line_update(request):
         and new_status_name in COMMENT_REQUIRED_STATUSES
         and not comment
     ):
-        messages.error(
-            request,
-            (
-                f'A comment is required when changing '
-                f'line {line.line_num} from '
-                f'{line.claim_status.name if line.claim_status else "Unset"} to '
-                f'{new_claim_status.name}.'
-            )
-        )
-        return redirect(forwarding_url)
+        return line_update_error(request, line,
+            f'A comment is required when changing line {line.line_num} from '
+            f'{line.claim_status.name if line.claim_status else "Unset"} to {new_claim_status.name}.')
     # ---------------------------------------------------------
     # LINE NUMBER
     # ---------------------------------------------------------
@@ -1032,7 +1058,8 @@ def line_update(request):
     # COMPLETION DATE
     # ---------------------------------------------------------
 
-    new_start_date = request.POST.get('start_date', '').strip()
+    new_start_date = request.POST.get('start_date',
+        line.start_date.strftime('%B %d, %Y') if line.start_date else '').strip()
 
     if new_start_date:
         try:
@@ -1042,11 +1069,7 @@ def line_update(request):
             ).date()
 
         except ValueError:
-            messages.error(
-                request,
-                'Completion Date must use the expected date format.'
-            )
-            return redirect(forwarding_url)
+            return line_update_error(request, line, 'Completion Date must use the expected date format.')
 
         if formatted_start_date != line.start_date:
             line.start_date = formatted_start_date
@@ -1088,11 +1111,7 @@ def line_update(request):
             )
 
         except InvalidOperation:
-            messages.error(
-                request,
-                'Claim Total must be a valid decimal number.'
-            )
-            return redirect(forwarding_url)
+            return line_update_error(request, line, 'Claim Total must be a valid decimal number.')
 
         if not validated_claim_total.is_finite() or abs(validated_claim_total) >= Decimal('100000000') or validated_claim_total.as_tuple().exponent < -2:
             return HttpResponseBadRequest('Invalid claim total.')
@@ -1100,6 +1119,10 @@ def line_update(request):
         if validated_claim_total != line.claim_total:
             line.claim_total = validated_claim_total
             updated = True
+
+    if new_status_name in COMPLETION_DATE_REQUIRED_STATUSES and line.start_date is None:
+        return line_update_error(request, line,
+            f'Completion Date is required when the claim status is {new_claim_status.name}.')
 
     # ---------------------------------------------------------
     # CLAIM STATUS
@@ -1220,6 +1243,8 @@ def add_start_date(request):
         line.start_date = forms.DateField(required=False).clean(start_date)
     except ValidationError:
         return HttpResponseBadRequest('Invalid completion date.')
+    if line.claim_status and line.claim_status.name.strip().lower() in COMPLETION_DATE_REQUIRED_STATUSES and line.start_date is None:
+        return HttpResponseBadRequest('Completion Date is required for Pending and Requires Attention claims.')
     line.save()
 
     # Get the success URL

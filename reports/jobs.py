@@ -86,7 +86,8 @@ def local_asset(uri, relative_uri):
 def render_report(job, destination):
     from .views import ReportService, get_claim_status_totals
     context = {'dealership': job.dealership.name, 'report_type': job.report_type,
-        'start_date': job.start_date, 'end_date': job.end_date}
+        'start_date': job.start_date.isoformat() if job.start_date else '',
+        'end_date': job.end_date.isoformat() if job.end_date else ''}
     if job.report_type == 'Daily Report':
         report = ReportService.generate_daily_report(job.dealership_id, job.start_date)
         context['claim_status_totals'] = get_claim_status_totals(job.dealership_id, job.start_date)

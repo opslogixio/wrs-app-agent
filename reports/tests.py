@@ -188,6 +188,8 @@ class BackgroundReportTests(TestCase):
                 text = '\n'.join(page.extract_text() for page in reader.pages)
                 self.assertIn('7654321', text)
                 self.assertIn(self.dealer.name, text)
+                if name != 'RA Report':
+                    self.assertIn(today.isoformat(), text)
 
     def test_foreign_user_or_revoked_membership_cannot_read_job(self):
         job = self.queue()

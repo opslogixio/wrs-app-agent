@@ -40,8 +40,10 @@ with transaction.atomic():
     for route, status in (('claim-queue', 'Rework'), ('new-claim-queue', 'New'),
         ('pending-claim-queue', 'Pending'), ('rework-claim-queue', 'Rework'),
         ('ra-claim-queue', 'Requires Attention'), ('ra-claim-queue', 'Aging')):
-        response = client.get(reverse('claim:' + route, args=[status]), {'dealership_id': dealer.pk})
+        with CaptureQueriesContext(connection) as queries:
+            response = client.get(reverse('claim:' + route, args=[status]), {'dealership_id': dealer.pk})
         assert response.status_code == 200, (route, response.status_code)
+        assert len(queries) <= 12, (route, len(queries))
     transaction.set_rollback(True)
 print('All six queue routes rendered successfully against the imported database.')
 

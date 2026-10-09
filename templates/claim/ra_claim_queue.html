@@ -62,7 +62,7 @@
               {% for line_info in claim_data.lines %}
                 <tr>
                   <td>
-                    <a href="{% if 'wrs-admin' in user_groups.first.name %}{% url 'claim:claim-update' pk=claim_data.claim.id dealership_id=dealership_id %}
+                    <a href="{% if is_wrs_admin %}{% url 'claim:claim-update' pk=claim_data.claim.id dealership_id=dealership_id %}
                     {% else %}{% url 'claim:dealer-claim-update' pk=claim_data.claim.id dealership_id=dealership_id %}{% endif %}">
                       {{ claim_data.claim.repair_order }}
                     </a>
@@ -113,7 +113,7 @@
                 {% for line_info in claim_data.lines %}
                   {% if line_info.line.claim_status.name == 'Requires Attention' %}
                 <tr>
-                  <td><a href="{% if 'wrs-admin' in user_groups.first.name %}{% url 'claim:claim-update' pk=claim_data.claim.id dealership_id=dealership_id %}
+                  <td><a href="{% if is_wrs_admin %}{% url 'claim:claim-update' pk=claim_data.claim.id dealership_id=dealership_id %}
                     {% else %}{% url 'claim:dealer-claim-update' pk=claim_data.claim.id dealership_id=dealership_id %}{% endif %}">
                       {{ claim_data.claim.repair_order }}
                     </a>

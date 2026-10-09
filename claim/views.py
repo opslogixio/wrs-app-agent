@@ -249,7 +249,7 @@ class PaginatedClaimQueue(DealershipAccessMixin, ListView):
             'claim_status': self.kwargs['filter_request'],
             'dealership': self.authorized_dealership,
             'dealership_id': self.authorized_dealership.pk,
-            'user_groups': self.request.user.groups.all(),
+            'is_wrs_admin': is_wrs_admin(self.request.user),
             'bodyshop': bool(bodyshop), 'bodyshop_claims': bodyshop,
             self.section_name: other, 'tags': list(tags.values()),
             'pagination_query': query.urlencode(), 'custom_pagination': True,

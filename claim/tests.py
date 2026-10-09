@@ -271,6 +271,17 @@ class QueuePaginationTests(TestCase):
                 self.assertFalse({c.pk for c in second.context['object_list']} & {c.pk for c in claims})
                 self.assertEqual(self.client.get(url, {'dealership_id': self.foreign.pk}).status_code, 404)
 
+    def test_rendered_queue_has_no_per_row_role_queries(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        url = reverse('claim:pending-claim-queue', args=['Pending'])
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(url, {'dealership_id': self.dealer.pk})
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(len(queries), 12)
+        self.assertContains(response, reverse('claim:dealer-claim-update', args=[
+            Claim.objects.filter(dealership=self.dealer).order_by('-repair_order').first().pk, self.dealer.pk]))
+
     def test_bodyshop_and_regular_lines_render_ages_and_amounts(self):
         for route in ('pending-claim-queue', 'rework-claim-queue'):
             status = 'Pending' if route.startswith('pending') else 'Rework'

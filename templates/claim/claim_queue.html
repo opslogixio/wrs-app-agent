@@ -61,7 +61,7 @@
                     {% for claim in bodyshop_claims %}
                       <tr>
                         <td>
-                          <a href="{% if 'wrs-admin' in user_groups.first.name %}{% url 'claim:claim-update' pk=claim.id dealership_id=dealership_id %}
+                          <a href="{% if is_wrs_admin %}{% url 'claim:claim-update' pk=claim.id dealership_id=dealership_id %}
                           {% else %}{% url 'claim:dealer-claim-update' pk=claim.id dealership_id=dealership_id %}{% endif %}">
                               {{ claim.repair_order }}
                           </a>
@@ -105,7 +105,7 @@
                     {% for claim in other_claims %}
                       <tr>
                         <td>
-                          <a href="{% if 'wrs-admin' in user_groups.first.name %}{% url 'claim:claim-update' pk=claim.id dealership_id=dealership_id %}
+                          <a href="{% if is_wrs_admin %}{% url 'claim:claim-update' pk=claim.id dealership_id=dealership_id %}
                           {% else %}{% url 'claim:dealer-claim-update' pk=claim.id dealership_id=dealership_id %}{% endif %}">
                               {{ claim.repair_order }}
                           </a>

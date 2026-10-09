@@ -221,19 +221,19 @@
                           data-original-status="{{ line.claim_status.id }}"
                       >
 
-                          <option value="8" {% if line.claim_status.id == 8 %}selected{% endif %}>
+                          <option value="8" {% if line.edit_values.claim_status == "8" %}selected{% endif %}>
                               Rework
                           </option>
 
-                          <option value="2" {% if line.claim_status.id == 2 %}selected{% endif %}>
+                          <option value="2" {% if line.edit_values.claim_status == "2" %}selected{% endif %}>
                               No Warranty
                           </option>
 
-                          <option value="3" {% if line.claim_status.id == 3 %}selected{% endif %}>
+                          <option value="3" {% if line.edit_values.claim_status == "3" %}selected{% endif %}>
                               Not Submitted
                           </option>
 
-                          <option value="6" {% if line.claim_status.id == 6 %}selected{% endif %}>
+                          <option value="6" {% if line.edit_values.claim_status == "6" %}selected{% endif %}>
                               Rejected
                           </option>
 

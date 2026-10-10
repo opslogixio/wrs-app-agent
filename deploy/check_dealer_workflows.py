@@ -49,18 +49,22 @@ try:
         statuses = {status.name: status for status in Status.objects.all()}
         number = max(1, Claim.objects.order_by('-repair_order').values_list('repair_order', flat=True).first() or 0) + 1
         create_url = reverse('claim:claim-form', args=[dealer.pk])
-        for offset, action in enumerate(('submit', 'add_another', 'add_another')):
+        for offset, action in enumerate(('submit', 'add_another', 'add_another', 'done')):
             response = client.post(create_url, {'dealership': dealer.pk, 'repair_order': number + offset,
                 'claim_tag': [tag.pk], 'comment': 'Temporary deployment verification', 'action': action})
             assert response.status_code == 302
             claim = Claim.objects.get(dealership=dealer, repair_order=number + offset)
-            expected = reverse('claim:dealer-claim-update', args=[claim.pk, dealer.pk]) if action == 'submit' else create_url + '?add_another=1'
+            expected = {
+                'submit': reverse('claim:dealer-claim-update', args=[claim.pk, dealer.pk]),
+                'add_another': create_url + '?add_another=1',
+                'done': reverse('dashboard:dealer_dashboard', args=[dealer.pk]),
+            }[action]
             assert response.url == expected, response.url
             page = client.get(response.url)
             assert page.status_code == 200
             if action == 'add_another':
                 assert not page.context['claim_form'].is_bound
-                assert '>Done</a>' in page.content.decode()
+                assert '>Done</button>' in page.content.decode()
         line = claim.linetable_set.get()
         for current, expected, default in (
             ('Requires Attention', {'Rework', 'Not Submitted'}, 'Rework'),

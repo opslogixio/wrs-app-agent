@@ -102,9 +102,8 @@
                 <div class="col-lg-10">
                   <button type="submit" name="action" value="submit" class="btn btn-primary">Submit</button>
                   <button type="submit" name="action" value="add_another" class="btn btn-outline-primary">Add another claim</button>
-                  {% if adding_multiple %}
-                    <a href="{% url 'dashboard:dashboard' %}" class="btn btn-outline-secondary">Done</a>
-                  {% endif %}
+                  <button type="submit" name="action" value="done" class="btn btn-outline-secondary">Done</button>
+                  <p class="form-text mt-2">All buttons save this claim. Submit opens the claim view; Add another claim opens a fresh form; Done opens this dealer's dashboard.</p>
                 </div>
               </div>    
             </form>

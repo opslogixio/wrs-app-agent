@@ -76,7 +76,7 @@ class ClaimFormView(DealershipAccessMixin, View):
 
     def post(self, request, dealership_id):
         action = request.POST.get('action', 'submit')
-        if action not in {'submit', 'add_another'}:
+        if action not in {'submit', 'add_another', 'done'}:
             return HttpResponseBadRequest('Invalid submit action.')
         claim_form = self.claim_form_class(request.POST)
         claim_form.fields['dealership'].queryset = accessible_dealerships(request.user).filter(pk=dealership_id)
@@ -147,6 +147,8 @@ class ClaimFormView(DealershipAccessMixin, View):
             messages.success(request, f'Claim for repair order {claim.repair_order} was created.')
             if action == 'add_another':
                 return redirect(reverse('claim:claim-form', args=[dealership_id]) + '?add_another=1')
+            if action == 'done':
+                return redirect(reverse('dashboard:dealer_dashboard', args=[dealership_id]))
             route = 'claim-update' if is_wrs_admin(user) else 'dealer-claim-update'
             return redirect(reverse('claim:' + route, args=[claim.pk, dealership_id]))
 

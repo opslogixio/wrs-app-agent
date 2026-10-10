@@ -168,7 +168,7 @@ class ContributorWorkflowTests(TestCase):
             self.assertTrue(claim.journal_set.filter(comment=f'Evidence for {number}').exists())
             self.assertEqual(list(claim.claim_tag.all()), [self.tag])
 
-    def test_add_another_repeats_with_fresh_form_and_done_without_saving(self):
+    def test_add_another_repeats_with_fresh_form_before_final_done_submission(self):
         for number in (910, 911, 912):
             response = self.client.post(self.create_url, self.payload(number, 'add_another'))
             self.assertEqual(response.url, self.create_url + '?add_another=1')
@@ -177,15 +177,40 @@ class ContributorWorkflowTests(TestCase):
             self.assertFalse(response.context['journal_form'].is_bound)
             self.assertTrue(response.context['adding_multiple'])
             self.assertNotContains(response, f'Evidence for {number}')
-            self.assertContains(response, f'href="{reverse("dashboard:dashboard")}"')
-            self.assertContains(response, '>Done</a>')
+            self.assertContains(response, '>Done</button>')
             count = Claim.objects.count()
             self.client.get(self.create_url + '?add_another=1')
             self.assertEqual(Claim.objects.count(), count)
         count = Claim.objects.count()
         self.client.get(reverse('dashboard:dashboard'))
         self.assertEqual(Claim.objects.count(), count)
-        self.assertNotContains(self.client.get(self.create_url), '>Done</a>')
+        self.assertContains(self.client.get(self.create_url), '>Done</button>')
+        response = self.client.post(self.create_url + '?add_another=1', self.payload(913, 'done'))
+        self.assertRedirects(response, reverse('dashboard:dealer_dashboard', args=[self.dealer.pk]))
+        self.assertEqual(Claim.objects.count(), count + 1)
+        self.assertTrue(Claim.objects.filter(repair_order=913, dealership=self.dealer).exists())
+
+    def test_done_saves_claim_and_related_data_before_opening_specific_dealer_dashboard(self):
+        for user, number in ((self.user, 914), (self.admin, 915)):
+            with self.subTest(user=user.email):
+                self.client.force_login(user)
+                response = self.client.post(self.create_url, self.payload(number, 'done'))
+                self.assertRedirects(response, reverse('dashboard:dealer_dashboard', args=[self.dealer.pk]))
+                claim = Claim.objects.get(repair_order=number, dealership=self.dealer)
+                self.assertEqual(claim.linetable_set.get().claim_status, self.statuses['New'])
+                self.assertTrue(claim.journal_set.filter(comment=f'Evidence for {number}').exists())
+                self.assertEqual(list(claim.claim_tag.all()), [self.tag])
+
+    def test_done_validates_current_claim_and_preserves_invalid_input(self):
+        before = Claim.objects.count()
+        for payload in ({'action': 'done'}, dict(self.payload(916, 'done'), repair_order='invalid')):
+            response = self.client.post(self.create_url, payload)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(Claim.objects.count(), before)
+            self.assertContains(response, 'value="done"')
+        self.assertContains(response, 'value="invalid"')
+        self.assertContains(response, 'Evidence for 916')
+        self.assertContains(response, 'checked')
 
     def test_invalid_batch_submission_preserves_fields_and_creates_nothing(self):
         payload = self.payload(920, 'add_another')
@@ -196,12 +221,12 @@ class ContributorWorkflowTests(TestCase):
         self.assertContains(response, 'value="invalid"')
         self.assertContains(response, 'Evidence for 920')
         self.assertContains(response, 'checked')
-        self.assertContains(response, '>Done</a>')
+        self.assertContains(response, '>Done</button>')
         self.assertEqual(Claim.objects.count(), before)
         self.assertFalse(Journal.objects.exists())
 
     def test_duplicate_and_foreign_claim_creation_remain_blocked(self):
-        for action in ('submit', 'add_another'):
+        for action in ('submit', 'add_another', 'done'):
             before = Claim.objects.count()
             response = self.client.post(self.create_url, self.payload(900, action))
             self.assertEqual(response.status_code, 200)

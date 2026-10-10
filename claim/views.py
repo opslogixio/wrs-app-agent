@@ -363,8 +363,6 @@ def dealer_status_choices(current):
         return {'rework', 'not submitted'}
     if current in DEALER_RETURN_STATUSES:
         return {current, 'rework'}
-    if current == 'rework':
-        return {'rework', 'no warranty', 'not submitted', 'rejected'}
     return set()
 
 

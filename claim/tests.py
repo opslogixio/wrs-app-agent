@@ -656,7 +656,8 @@ class CompletionDateRequirementTests(TestCase):
         dealer.dealership.add(self.dealer)
         for user in (self.admin, dealer):
             with self.subTest(user=user.email):
-                LineTable.objects.filter(pk=self.line.pk).update(claim_status=self.statuses['Rework'])
+                LineTable.objects.filter(pk=self.line.pk).update(
+                    claim_status=self.statuses['Rework' if user.is_superuser else 'No Warranty'])
                 self.client.force_login(user)
                 response = self.client.post(self.url, {'line_id': self.line.pk,
                     'claim_status': self.statuses['No Warranty'].pk, 'comment': ''})

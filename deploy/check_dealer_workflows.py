@@ -81,7 +81,19 @@ try:
                 'claim_status': statuses['Rework'].pk, 'comment': 'Verified dealer rework comment'})
             line.refresh_from_db()
             assert accepted.status_code == 302 and line.claim_status.name == 'Rework'
-        print('Verified Submit, repeated Add another claim, Done, dealer dropdown defaults, and required rework comments.')
+        for name in ('Rework', 'New', 'Pending', 'Paid'):
+            LineTable.objects.filter(pk=line.pk).update(claim_status=statuses[name])
+            page = client.get(reverse('claim:dealer-claim-update', args=[claim.pk, dealer.pk]))
+            rendered = next(row for row in page.context['line_table'] if row.pk == line.pk)
+            assert not rendered.dealer_status_options, name
+            forged = client.post(reverse('claim:line-updates'), {'line_id': line.pk,
+                'claim_status': statuses['No Warranty'].pk, 'comment': 'Forbidden transition'})
+            line.refresh_from_db()
+            assert forged.status_code == 403 and line.claim_status.name == name
+            accepted = client.post(reverse('claim:line-updates'), {'line_id': line.pk, 'comment': 'Allowed comment'})
+            line.refresh_from_db()
+            assert accepted.status_code == 302 and line.claim_status.name == name
+        print('Verified Submit, repeated Add another claim, Done, dealer dropdown defaults, required rework comments, and read-only statuses.')
         transaction.set_rollback(True)
     print('All temporary users, claims, lines, comments, audit events, and sessions rolled back.')
 finally:

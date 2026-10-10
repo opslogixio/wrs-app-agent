@@ -125,6 +125,35 @@ class ContributorWorkflowTests(TestCase):
         self.line.refresh_from_db()
         self.assertEqual(self.line.claim_status, self.statuses['Not Submitted'])
 
+    def test_other_statuses_render_static_text_and_allow_comments_without_status_changes(self):
+        for name in ('Rework', 'New', 'Pending', 'Paid', 'Unrelated'):
+            with self.subTest(status=name):
+                status = Status.objects.get(name=name)
+                LineTable.objects.filter(pk=self.line.pk).update(claim_status=status)
+                response = self.client.get(self.edit_url)
+                root = html5lib.parse(response.content.decode(), namespaceHTMLElements=False)
+                form = next(node for node in root.iter('form') if node.get('id') == f'line_form_{self.line.pk}')
+                self.assertFalse(any(node.get('name') == 'claim_status' for node in form.iter('select')))
+                self.assertIn(name, ''.join(form.itertext()))
+                response = self.client.post(self.update_url, {'line_id': self.line.pk, 'comment': f'Comment on {name}'})
+                self.assertEqual(response.status_code, 302)
+                self.line.refresh_from_db()
+                self.assertEqual(self.line.claim_status, status)
+                self.assertTrue(Journal.objects.filter(line=self.line, comment=f'Comment on {name}').exists())
+
+    def test_read_only_statuses_reject_every_forged_status_change(self):
+        for name in ('Rework', 'New', 'Pending', 'Paid', 'Unrelated'):
+            current = Status.objects.get(name=name)
+            LineTable.objects.filter(pk=self.line.pk).update(claim_status=current)
+            for target in Status.objects.exclude(pk=current.pk):
+                with self.subTest(current=name, target=target.name):
+                    response = self.client.post(self.update_url, {'line_id': self.line.pk,
+                        'claim_status': target.pk, 'comment': 'Forged transition'})
+                    self.assertEqual(response.status_code, 403)
+                    self.line.refresh_from_db()
+                    self.assertEqual(self.line.claim_status, current)
+        self.assertFalse(Journal.objects.exists())
+
     def payload(self, number, action='submit'):
         return {'dealership': self.dealer.pk, 'repair_order': number, 'claim_tag': [self.tag.pk],
             'comment': f'Evidence for {number}', 'action': action}
